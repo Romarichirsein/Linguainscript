@@ -121,8 +121,8 @@ function LoginScreen() {
             className="flex flex-col items-center gap-6 max-w-sm px-6 text-center z-10"
           >
             {/* Pulsing professional Logo block */}
-            <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-2xl shadow-indigo-500/20">
-              <span className="font-sans font-black text-3xl tracking-wider text-white">L</span>
+            <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-transparent">
+              <img src="/logo.png" alt="Logo" className="h-20 w-20 object-contain" />
               <div className="absolute -inset-1 rounded-3xl border-2 border-indigo-400/30 animate-ping opacity-60 pointer-events-none" />
             </div>
 
@@ -166,9 +166,8 @@ function LoginScreen() {
 
               {/* Portal Header & Logo */}
               <div className="text-center mb-7 relative">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-500 via-indigo-600 to-purple-600 font-sans font-black text-2xl text-white shadow-xl shadow-indigo-500/20">
-                  L
-                  <div className="absolute inset-0 rounded-2xl border border-white/20" />
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-transparent">
+                  <img src="/logo.png" alt="Logo" className="h-16 w-16 object-contain" />
                 </div>
                 <h2 className="mt-4 font-sans text-3xl font-black tracking-tight bg-gradient-to-r from-white via-indigo-100 to-slate-200 bg-clip-text text-transparent">
                   LinguaInscript
