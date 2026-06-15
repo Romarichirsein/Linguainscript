@@ -1,0 +1,168 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net (Rule 1)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // ----------------------------------------------------
+    // Primatives (Phase 3)
+    // ----------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    
+    function isDirectrice() {
+      return isSignedIn() && (
+        request.auth.token.email == "romarichirsein@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "directrice")
+      );
+    }
+    
+    function isStaff() {
+      return isSignedIn() && (
+        request.auth.token.email == "romarichirsein@gmail.com" ||
+        exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      );
+    }
+    
+    function getStaffCampusId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.campusId;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    // ----------------------------------------------------
+    // Validation Blueprints (Pillar 2)
+    // ----------------------------------------------------
+    function isValidStudent(data) {
+      return data.keys().hasAll([
+        "id", "firstName", "lastName", "birthDate", "phone", "email",
+        "parentName", "parentPhone", "campusId", "classId", "status",
+        "enrollmentDate", "expirationDate", "totalAmount", "paidAmount",
+        "balance", "createdBy", "createdAt", "updatedAt"
+      ]) &&
+      data.keys().size() >= 18 && data.keys().size() <= 19 &&
+      data.id is string && data.id.size() <= 64 &&
+      data.firstName is string && data.firstName.size() <= 100 &&
+      data.lastName is string && data.lastName.size() <= 100 &&
+      data.phone is string && data.phone.size() <= 30 &&
+      data.email is string && data.email.size() <= 100 &&
+      data.campusId is string && data.campusId.size() <= 64 &&
+      data.classId is string && data.classId.size() <= 64 &&
+      data.status in ["actif", "en_attente", "expiré"] &&
+      data.totalAmount is number &&
+      data.paidAmount is number &&
+      data.balance is number;
+    }
+
+    function isValidClass(data) {
+      return data.keys().hasAll([
+        "id", "language", "level", "period", "teacherId", "campusId",
+        "maxStudents", "currentCount", "startDate", "endDate", "isActive"
+      ]) &&
+      data.keys().size() == 11 &&
+      data.id is string && data.id.size() <= 64 &&
+      data.language is string &&
+      data.level in ["A1", "A2", "B1", "B2", "C1", "C2"] &&
+      data.period in ["8h", "12h", "15h", "17h"] &&
+      data.maxStudents is number && data.maxStudents > 0 &&
+      data.currentCount is number && data.currentCount >= 0;
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll([
+        "id", "studentId", "amount", "date", "mode", "recordedBy"
+      ]) &&
+      data.keys().size() >= 6 && data.keys().size() <= 7 &&
+      data.id is string && data.id.size() <= 64 &&
+      data.studentId is string && data.studentId.size() <= 64 &&
+      data.amount is number && data.amount > 0 &&
+      data.mode in ["Espèces", "Mobile Money", "Virement"];
+    }
+
+    // ----------------------------------------------------
+    // Collection Rules matches
+    // ----------------------------------------------------
+    
+    // 1. Users collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isDirectrice());
+      allow list: if isStaff();
+      allow create: if isSignedIn() && request.auth.uid == userId && request.resource.data.role == "secretaire";
+      allow update: if isDirectrice() || (
+        isSignedIn() && request.auth.uid == userId && 
+        request.resource.data.role == resource.data.role && 
+        request.resource.data.campusId == resource.data.campusId
+      );
+      allow delete: if isDirectrice();
+    }
+    
+    // 2. Campuses collection
+    match /campuses/{campusId} {
+      allow read: if isStaff();
+      allow write: if isDirectrice() && isValidId(campusId);
+    }
+    
+    // 3. Teachers collection
+    match /teachers/{teacherId} {
+      allow read: if isStaff();
+      allow write: if isDirectrice() && isValidId(teacherId);
+    }
+    
+    // 4. Classes collection
+    match /classes/{classId} {
+      allow read: if isStaff();
+      allow create: if isValidId(classId) && isValidClass(request.resource.data) && (
+        isDirectrice() || (isStaff() && getStaffCampusId() == request.resource.data.campusId)
+      );
+      allow update: if isValidClass(request.resource.data) && (
+        isDirectrice() || (isStaff() && getStaffCampusId() == resource.data.campusId && getStaffCampusId() == request.resource.data.campusId)
+      );
+      allow delete: if isDirectrice();
+    }
+    
+    // 5. Students collection
+    match /students/{studentId} {
+      allow read: if isStaff();
+      allow create: if isValidId(studentId) && isValidStudent(request.resource.data) && (
+        isDirectrice() || (isStaff() && getStaffCampusId() == request.resource.data.campusId)
+      ) && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      
+      allow update: if isValidStudent(request.resource.data) && (
+        isDirectrice() || (isStaff() && getStaffCampusId() == resource.data.campusId && getStaffCampusId() == request.resource.data.campusId)
+      ) && request.resource.data.updatedAt == request.time && request.resource.data.createdAt == resource.data.createdAt;
+      
+      allow delete: if isDirectrice();
+    }
+    
+    // 6. Payments collection
+    match /payments/{paymentId} {
+      allow read: if isStaff();
+      allow create: if isValidId(paymentId) && isValidPayment(request.resource.data) && (
+        isDirectrice() || (
+          isStaff() && getStaffCampusId() == get(/databases/$(database)/documents/students/$(request.resource.data.studentId)).data.campusId
+        )
+      );
+      allow update, delete: if isDirectrice();
+    }
+    
+    // 7. Audit Logs collection
+    match /audit_logs/{logId} {
+      allow read: if isStaff();
+      allow create: if isStaff() && isValidId(logId) && request.resource.data.timestamp == request.time.toString();
+      allow update, delete: if false; // Audit logs are immutable
+    }
+    
+    // 8. Waitlist collection
+    match /waitlist/{waitlistId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isStaff() && isValidId(waitlistId);
+    }
+  }
+}

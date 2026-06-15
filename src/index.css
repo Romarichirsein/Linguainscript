@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+/* ==========================================
+   LINGUINSCRIPT PREMIUM DARK THEME OVERRIDES
+   ========================================== */
+
+/* Outer Canvas Environment Background & Caret */
+html.dark {
+  background-color: #020617; /* slate-950 */
+  color: #f8fafc; /* slate-50 */
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #020617;
+  color: #f8fafc;
+}
+
+/* Scrollbar styling for high-contrast dark environments */
+html.dark ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html.dark ::-webkit-scrollbar-track {
+  background: #020617; /* slate-950 */
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #1e293b; /* slate-800 */
+  border-radius: 9999px;
+  border: 2px solid #020617;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334155; /* slate-700 */
+}
+
+/* Automatic card container overrides */
+html.dark .bg-white {
+  background-color: #0f172a !important; /* slate-900 */
+  color: #f8fafc !important;
+  border-color: #1e293b !important; /* slate-800 */
+}
+
+/* Automatic border mappings */
+html.dark .border,
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300 {
+  border-color: #1e293b !important; /* slate-800 */
+}
+
+html.dark .divide-y > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+
+/* Automatic background gray containers (e.g. body bg, inner pages base) */
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/40,
+html.dark .bg-slate-100 {
+  background-color: #020617 !important; /* slate-950 */
+}
+
+/* Metrics and utility lists inner panel backgrounds */
+html.dark .bg-slate-50\/50,
+html.dark .bg-slate-50\/80 {
+  background-color: #1e293b !important; /* slate-800 */
+}
+
+/* Readability - Slate texts coloring overrides */
+html.dark .text-slate-900,
+html.dark .text-slate-850,
+html.dark .text-slate-800,
+html.dark .text-slate-705,
+html.dark .text-slate-700,
+html.dark .text-slate-600 {
+  color: #e2e8f0 !important; /* slate-200 */
+}
+
+html.dark .text-slate-550,
+html.dark .text-slate-500,
+html.dark .text-slate-450,
+html.dark .text-slate-400 {
+  color: #94a3b8 !important; /* slate-400 */
+}
+
+/* Form Controls: Input fields, Selection boxes, Text areas */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #020617 !important; /* slate-950 */
+  color: #f8fafc !important;
+  border-color: #1e293b !important; /* slate-800 */
+}
+
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  border-color: #3b82f6 !important; /* blue-500 */
+  --tw-ring-color: rgba(59, 130, 246, 0.5) !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important; /* slate-500 */
+}
+
+/* Forms labels and legend helpers */
+html.dark label {
+  color: #cbd5e1 !important; /* slate-300 */
+}
+
+/* Buttons and dynamic list hover triggers */
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .bg-slate-50\/50:hover,
+html.dark .bg-slate-50\/30:hover {
+  background-color: #1e293b !important; /* slate-800 */
+}
+
+/* Ensure selected rows are highlighted elegant dark mode blue */
+html.dark .bg-blue-50,
+html.dark .bg-blue-50\/50 {
+  background-color: rgba(30, 41, 59, 0.6) !important; /* translucent slate-800 */
+}
+
+/* Translucent backdrop overlays (e.g. modals, drawers, sidebar screen dividers) */
+html.dark .backdrop-blur,
+html.dark .bg-slate-900\/40 {
+  background-color: rgba(2, 6, 23, 0.7) !important; /* deep blurry slate overlay */
+}
+
+/* Specific component element corrections */
+html.dark .shadow-sm {
+  shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+html.dark .shadow-md {
+  shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+}
+
+html.dark .shadow-xl {
+  shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+}

@@ -1,0 +1,224 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile representing a secretary or director",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["secretaire", "directrice"] },
+        "campusId": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Campus": {
+      "title": "Campus",
+      "description": "Educational center location",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "address", "isActive", "createdAt"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Teacher profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "languages": { "type": "array" },
+        "campusId": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "name", "phone", "email", "campusId", "isActive"]
+    },
+    "Class": {
+      "title": "Class",
+      "description": "Course session details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "language": { "type": "string" },
+        "level": { "type": "string", "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] },
+        "period": { "type": "string", "enum": ["8h", "12h", "15h", "17h"] },
+        "teacherId": { "type": "string" },
+        "campusId": { "type": "string" },
+        "maxStudents": { "type": "number" },
+        "currentCount": { "type": "number" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "language", "level", "period", "teacherId", "campusId", "maxStudents", "currentCount", "startDate", "endDate", "isActive"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Registered student profiles",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "parentName": { "type": "string" },
+        "parentPhone": { "type": "string" },
+        "photo": { "type": "string" },
+        "campusId": { "type": "string" },
+        "classId": { "type": "string" },
+        "status": { "type": "string", "enum": ["actif", "en_attente", "expiré"] },
+        "enrollmentDate": { "type": "string" },
+        "expirationDate": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "balance": { "type": "number" },
+        "createdBy": { "type": "object" },
+        "tags": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": [
+        "id", "firstName", "lastName", "birthDate", "phone", "email",
+        "parentName", "parentPhone", "campusId", "classId", "status",
+        "enrollmentDate", "expirationDate", "totalAmount", "paidAmount",
+        "balance", "createdBy", "createdAt", "updatedAt"
+      ]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment transactions for scolarship",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "mode": { "type": "string", "enum": ["Espèces", "Mobile Money", "Virement"] },
+        "recordedBy": { "type": "object" },
+        "note": { "type": "string" }
+      },
+      "required": ["id", "studentId", "amount", "date", "mode", "recordedBy"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System access and operation trace logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetName": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "campusId": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "details": { "type": "object" }
+      },
+      "required": ["id", "action", "targetId", "targetName", "userId", "userName", "campusId", "timestamp"]
+    },
+    "WaitlistEntry": {
+      "title": "WaitlistEntry",
+      "description": "Entries on full classes waitlists",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "classId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentPhone": { "type": "string" },
+        "addedAt": { "type": "string" },
+        "position": { "type": "number" },
+        "addedBy": { "type": "object" }
+      },
+      "required": ["id", "classId", "studentId", "studentName", "studentPhone", "addedAt", "position", "addedBy"]
+    },
+    "SchoolConfig": {
+      "title": "SchoolConfig",
+      "description": "Customizable branding and profile configuration for the school",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slogan": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "themeColor": { "type": "string", "enum": ["blue", "emerald", "rose", "amber", "slate"] },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "object" }
+      },
+      "required": ["id", "name", "slogan", "themeColor"]
+    },
+    "Reminder": {
+      "title": "Reminder",
+      "description": "History of automatic alerts and email/whatsapp reminders triggered for the student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentEmail": { "type": "string" },
+        "type": { "type": "string", "enum": ["upcoming_deadline", "overdue_account", "registration_validated"] },
+        "status": { "type": "string", "enum": ["pending", "sent", "failed"] },
+        "medium": { "type": "string", "enum": ["email", "sms", "whatsapp"] },
+        "amountDue": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "sentAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "notes": { "type": "string" },
+        "sentBy": { "type": "object" }
+      },
+      "required": ["id", "studentId", "studentName", "studentEmail", "type", "status", "medium", "amountDue", "dueDate", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User list"
+    },
+    "/campuses/{campusId}": {
+      "schema": "Campus",
+      "description": "List of campus settings"
+    },
+    "/teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "List of teachers"
+    },
+    "/classes/{classId}": {
+      "schema": "Class",
+      "description": "List of classes"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Register of student enrollment profiles"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Payment records of student fees"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Audit trace tracker"
+    },
+    "/waitlist/{waitlistId}": {
+      "schema": "WaitlistEntry",
+      "description": "Waitlist queue for classes"
+    },
+    "/school_config/{configId}": {
+      "schema": "SchoolConfig",
+      "description": "Brand custom configuration details"
+    },
+    "/reminders/{reminderId}": {
+      "schema": "Reminder",
+      "description": "Reminder history of student fees"
+    }
+  }
+}
