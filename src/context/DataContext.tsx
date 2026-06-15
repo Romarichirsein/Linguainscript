@@ -726,35 +726,66 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check if hardcoded Super Admin
-    if (cleanEmail === "romarichirsein@gmail.com" && password === "admin123") {
-      const mockUid = "superadmin_romaric";
-      const mockFUser = {
-        uid: mockUid,
-        email: cleanEmail,
-        displayName: "Romaric Hirsein (Super Admin)",
-        emailVerified: true,
-        isAnonymous: false,
-        providerData: []
-      } as any;
+    // Check if hardcoded demo users
+    let demoProfile: UserProfile | null = null;
+    let demoUid = "";
+    let demoDisplayName = "";
 
-      const profile: UserProfile = {
-        id: mockUid,
-        name: "Romaric Hirsein (Super Admin)",
+    if (cleanEmail === "romarichirsein@gmail.com" && password === "admin123") {
+      demoUid = "superadmin_romaric";
+      demoDisplayName = "Romaric Hirsein (Super Admin)";
+      demoProfile = {
+        id: demoUid,
+        name: demoDisplayName,
         email: cleanEmail,
         role: UserRole.SUPERADMIN,
         campusId: null,
         schoolId: null,
         password: "admin123"
       };
+    } else if (cleanEmail === "directrice.integral@gmail.com" && password === "lingua123") {
+      demoUid = "directrice_integral";
+      demoDisplayName = "Thérèse Ngono (Directrice)";
+      demoProfile = {
+        id: demoUid,
+        name: demoDisplayName,
+        email: cleanEmail,
+        role: UserRole.DIRECTRICE,
+        campusId: null,
+        schoolId: "school_integral",
+        password: "lingua123"
+      };
+    } else if (cleanEmail === "secretaire.demo@gmail.com" && password === "lingua123") {
+      demoUid = "secretaire_demo";
+      demoDisplayName = "Sarah Kiman (Secrétaire)";
+      demoProfile = {
+        id: demoUid,
+        name: demoDisplayName,
+        email: cleanEmail,
+        role: UserRole.SECRETAIRE,
+        campusId: "campus_01",
+        schoolId: "school_demo",
+        password: "lingua123"
+      };
+    }
+
+    if (demoProfile) {
+      const mockFUser = {
+        uid: demoUid,
+        email: cleanEmail,
+        displayName: demoDisplayName,
+        emailVerified: true,
+        isAnonymous: false,
+        providerData: []
+      } as any;
 
       try {
-        await setDoc(doc(db, "users", mockUid), profile, { merge: true });
-        setFirebaseUser(mockFUser);
-        setCurrentUser(profile);
+        await setDoc(doc(db, "users", demoUid), demoProfile, { merge: true });
       } catch (err) {
-        console.error("Failed writing superadmin session profile:", err);
+        console.error("Failed writing demo session profile to Firestore:", err);
       } finally {
+        setFirebaseUser(mockFUser);
+        setCurrentUser(demoProfile);
         setLoading(false);
       }
       return;
@@ -822,11 +853,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       await setDoc(doc(db, "users", mockUid), profile);
-      setFirebaseUser(mockFUser);
-      setCurrentUser(profile);
     } catch (err) {
       console.error("Failed to write mock account profile:", err);
     } finally {
+      setFirebaseUser(mockFUser);
+      setCurrentUser(profile);
       setLoading(false);
     }
   };
@@ -836,6 +867,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await signOut(auth);
     } catch (err) {
       console.error("Logout failed:", err);
+    } finally {
+      setFirebaseUser(null);
+      setCurrentUser(null);
     }
   };
 
