@@ -96,9 +96,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className="h-8 w-8 object-cover rounded shadow-md border border-slate-700"
               />
             ) : (
-              <span className={`flex h-8 w-8 items-center justify-center rounded font-bold text-sm text-white shadow-md ${schoolColorClass}`}>
-                {schoolInitials || "LI"}
-              </span>
+              <img
+                src="/logo.png"
+                alt="Logo"
+                className="h-8 w-8 object-cover rounded shadow-md border border-slate-700 bg-white"
+              />
             )}
             <div>
               <h1 className="font-sans font-bold text-[14px] leading-tight text-white tracking-tight truncate max-w-[140px]">
