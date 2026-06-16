@@ -19,3 +19,5 @@ We have successfully resolved the session persistence and campus creation issues
 ## Verification & Testing
 - Ran `npm run build` which completed successfully with zero compile-time or bundler issues.
 - Verified that all changes are live and tracked on GitHub: [https://github.com/Romarichirsein/Linguainscript.git](https://github.com/Romarichirsein/Linguainscript.git)
+- **Dev Server Relaunch**: Identified that a stale Node.js process (PID 20880) was running the outdated code on port 30020. Terminated this stale process and started a clean instance of the updated Vite development server on port 30020 (`npm run dev -- --port 30020`), which is now active and ready.
+
