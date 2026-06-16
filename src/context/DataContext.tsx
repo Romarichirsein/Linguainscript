@@ -35,7 +35,9 @@ import {
   GoogleAuthProvider,
   signOut,
   onAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword
 } from "firebase/auth";
 
 type OmitStudentFields = Omit< Student, "id" | "status" | "createdBy" | "createdAt" | "updatedAt" | "paidAmount" | "balance" >;
@@ -227,7 +229,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               await setDoc(userRef, newProfile);
               
               // Remove the manual placeholder profile doc
-              if (matchingProfile.id.startsWith("profile_")) {
+              if (matchingProfile.id !== user.uid) {
                 await deleteDoc(doc(db, "users", matchingProfile.id));
               }
               
@@ -726,100 +728,112 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check if hardcoded demo users
-    let demoProfile: UserProfile | null = null;
-    let demoUid = "";
-    let demoDisplayName = "";
-
-    if (cleanEmail === "romarichirsein@gmail.com" && password === "admin123") {
-      demoUid = "superadmin_romaric";
-      demoDisplayName = "Romaric Hirsein (Super Admin)";
-      demoProfile = {
-        id: demoUid,
-        name: demoDisplayName,
-        email: cleanEmail,
-        role: UserRole.SUPERADMIN,
-        campusId: null,
-        schoolId: null,
-        password: "admin123"
-      };
-    } else if (cleanEmail === "directrice.integral@gmail.com" && password === "lingua123") {
-      demoUid = "directrice_integral";
-      demoDisplayName = "Thérèse Ngono (Directrice)";
-      demoProfile = {
-        id: demoUid,
-        name: demoDisplayName,
-        email: cleanEmail,
-        role: UserRole.DIRECTRICE,
-        campusId: null,
-        schoolId: "school_integral",
-        password: "lingua123"
-      };
-    } else if (cleanEmail === "secretaire.demo@gmail.com" && password === "lingua123") {
-      demoUid = "secretaire_demo";
-      demoDisplayName = "Sarah Kiman (Secrétaire)";
-      demoProfile = {
-        id: demoUid,
-        name: demoDisplayName,
-        email: cleanEmail,
-        role: UserRole.SECRETAIRE,
-        campusId: "campus_01",
-        schoolId: "school_demo",
-        password: "lingua123"
-      };
-    }
-
-    if (demoProfile) {
-      const mockFUser = {
-        uid: demoUid,
-        email: cleanEmail,
-        displayName: demoDisplayName,
-        emailVerified: true,
-        isAnonymous: false,
-        providerData: []
-      } as any;
-
-      try {
-        await setDoc(doc(db, "users", demoUid), demoProfile, { merge: true });
-      } catch (err) {
-        console.error("Failed writing demo session profile to Firestore:", err);
-      } finally {
-        setFirebaseUser(mockFUser);
-        setCurrentUser(demoProfile);
-        setLoading(false);
-      }
-      return;
-    }
-
-    // Otherwise, search for a matching user in Firestore
     try {
-      const q = query(collection(db, "users"), where("email", "==", cleanEmail));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        throw new Error("Aucun compte trouvé avec cette adresse email.");
+      // 1. Resolve user profile and credentials first (for both demo users and normal Firestore users)
+      let resolvedProfile: UserProfile | null = null;
+      let storedPassword = "";
+
+      if (cleanEmail === "romarichirsein@gmail.com" && password === "admin123") {
+        storedPassword = "admin123";
+        resolvedProfile = {
+          id: "superadmin_romaric",
+          name: "Romaric Hirsein (Super Admin)",
+          email: cleanEmail,
+          role: UserRole.SUPERADMIN,
+          campusId: null,
+          schoolId: null,
+          password: "admin123"
+        };
+      } else if (cleanEmail === "directrice.integral@gmail.com" && password === "lingua123") {
+        storedPassword = "lingua123";
+        resolvedProfile = {
+          id: "directrice_integral",
+          name: "Thérèse Ngono (Directrice)",
+          email: cleanEmail,
+          role: UserRole.DIRECTRICE,
+          campusId: null,
+          schoolId: "school_integral",
+          password: "lingua123"
+        };
+      } else if (cleanEmail === "secretaire.demo@gmail.com" && password === "lingua123") {
+        storedPassword = "lingua123";
+        resolvedProfile = {
+          id: "secretaire_demo",
+          name: "Sarah Kiman (Secrétaire)",
+          email: cleanEmail,
+          role: UserRole.SECRETAIRE,
+          campusId: "campus_01",
+          schoolId: "school_demo",
+          password: "lingua123"
+        };
+      } else {
+        // Search for a matching user in Firestore
+        const q = query(collection(db, "users"), where("email", "==", cleanEmail));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          throw new Error("Aucun compte trouvé avec cette adresse email.");
+        }
+
+        const userDoc = snap.docs[0];
+        resolvedProfile = userDoc.data() as UserProfile;
+        storedPassword = resolvedProfile.password || "lingua123";
       }
 
-      // Find first matching user profile doc
-      const userDoc = snap.docs[0];
-      const userData = userDoc.data() as UserProfile;
-      const storedPassword = userData.password || "lingua123";
-
+      // 2. If the password is correct, authenticate the user with Firebase Auth
       if (password !== storedPassword) {
         throw new Error("Mot de passe incorrect.");
       }
 
-      const mockUid = userDoc.id;
+      const deterministicPassword = `${cleanEmail}_lingua_auth_2026`;
+      let firebaseAuthUser: any = null;
+
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, deterministicPassword);
+        firebaseAuthUser = userCredential.user;
+      } catch (authErr: any) {
+        if (
+          authErr.code === "auth/user-not-found" ||
+          authErr.code === "auth/invalid-credential" ||
+          authErr.code === "auth/wrong-password" ||
+          (authErr.message && (
+            authErr.message.includes("user-not-found") ||
+            authErr.message.includes("invalid-credential") ||
+            authErr.message.includes("wrong-password")
+          ))
+        ) {
+          const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, deterministicPassword);
+          firebaseAuthUser = userCredential.user;
+        } else {
+          throw authErr;
+        }
+      }
+
+      // Use the resulting Firebase Auth user UID (available via auth.currentUser.uid) as the profile ID.
+      // Set firebaseUser with this UID, and save the updated profile to Firestore using setDoc(doc(db, "users", mockFUser.uid), updatedProfile).
+      // Set the React states firebaseUser and currentUser accordingly.
+      const firebaseUid = auth.currentUser?.uid || firebaseAuthUser?.uid || "";
+      if (!firebaseUid) {
+        throw new Error("Impossible de récupérer l'identifiant Firebase Auth.");
+      }
+
       const mockFUser = {
-        uid: mockUid,
+        uid: firebaseUid,
         email: cleanEmail,
-        displayName: userData.name,
+        displayName: resolvedProfile.name,
         emailVerified: true,
         isAnonymous: false,
         providerData: []
       } as any;
 
+      const updatedProfile: UserProfile = {
+        ...resolvedProfile,
+        id: firebaseUid
+      };
+
+      await setDoc(doc(db, "users", mockFUser.uid), updatedProfile);
+
       setFirebaseUser(mockFUser);
-      setCurrentUser(userData);
+      setCurrentUser(updatedProfile);
 
     } catch (err: any) {
       console.error("Email/Password authentication failed: ", err);
