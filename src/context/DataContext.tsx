@@ -687,6 +687,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log(`School ${name} created and bootstrapped successfully with custom Directrice profile.`);
     } catch (err) {
       console.error("Error seeding new school: ", err);
+      handleFirestoreError(err, OperationType.WRITE, `schools/${schoolId}`);
     }
   };
 
@@ -721,6 +722,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log(`School ${schoolId} renewed successfully with pack ${pack} with expiration ${expiryStr}`);
     } catch (e) {
       console.error("Failed to renew local school: ", e);
+      handleFirestoreError(e, OperationType.WRITE, `schools/${schoolId}`);
     }
   };
 
@@ -749,6 +751,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Added school staff member successfully:", cleanId);
     } catch (error) {
       console.error("Failed to write staff member:", error);
+      handleFirestoreError(error, OperationType.WRITE, `users/${cleanId}`);
     }
   };
 
@@ -759,6 +762,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Deleted school staff member successfully:", userId);
     } catch (error) {
       console.error("Failed to delete staff member:", error);
+      handleFirestoreError(error, OperationType.WRITE, `users/${userId}`);
     }
   };
 
