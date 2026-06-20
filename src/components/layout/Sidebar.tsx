@@ -29,13 +29,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   setIsOpen
 }) => {
-  const { currentUser, logout, schoolConfig } = useData();
+  const { currentUser, logout, schoolConfig, currentPlan } = useData();
   const { t } = useTranslation();
   const isDirectrice = currentUser?.role === UserRole.DIRECTRICE;
   const isSuperAdmin = currentUser?.role === UserRole.SUPERADMIN;
   const canSeeAdminMenu = isDirectrice; // SuperAdmin does NOT manage students
 
   const handleTabClick = (tabId: string) => {
+    if (currentPlan) {
+      if (tabId === "newStudent" && !currentPlan.canCreateStudents) {
+        alert(`⚠️ Fonctionnalité Bloquée : La création d'élèves n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer à un pack supérieur.`);
+        return;
+      }
+      if (tabId === "waitlist" && !currentPlan.canManageWaitlist) {
+        alert(`⚠️ Fonctionnalité Bloquée : La file d'attente n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer à un pack supérieur.`);
+        return;
+      }
+      if (tabId === "reports" && !currentPlan.canViewReports) {
+        alert(`⚠️ Fonctionnalité Bloquée : Les rapports financiers et statistiques ne sont pas disponibles avec le pack ${currentPlan.name}. Veuillez passer à un pack supérieur.`);
+        return;
+      }
+      if (tabId === "renewals" && !currentPlan.canManageRenewals) {
+        alert(`⚠️ Fonctionnalité Bloquée : Les renouvellements d'inscriptions ne sont pas disponibles avec le pack ${currentPlan.name}. Veuillez passer à un pack supérieur.`);
+        return;
+      }
+      if (tabId === "classes" && !currentPlan.canManageClasses) {
+        alert(`⚠️ Fonctionnalité Bloquée : La gestion des classes et enseignants n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer à un pack supérieur.`);
+        return;
+      }
+      if (tabId === "audit" && !currentPlan.canViewHistory) {
+        alert(`⚠️ Fonctionnalité Bloquée : L'historique d'audit n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer à un pack supérieur.`);
+        return;
+      }
+    }
     setCurrentTab(tabId);
     setIsOpen(false);
   };
@@ -152,18 +178,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {menuItems.map(item => {
                   const Icon = item.icon;
                   const isActive = currentTab === item.id;
+                  const isLocked = currentPlan && (
+                    (item.id === "newStudent" && !currentPlan.canCreateStudents) ||
+                    (item.id === "waitlist" && !currentPlan.canManageWaitlist)
+                  );
                   return (
                     <button
                       key={item.id}
                       onClick={() => handleTabClick(item.id)}
                       className={`flex w-full items-center gap-3 rounded px-3 py-1.5 font-sans text-[13px] font-semibold transition-all ${
+                        isLocked ? "opacity-50" : ""
+                      } ${
                         isActive
                           ? "bg-blue-600/20 text-white border-l-2 border-blue-500 rounded-r"
                           : "text-slate-400 hover:text-white hover:bg-slate-800/60"
                       }`}
                     >
                       <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-blue-450" : "text-slate-500"}`} />
-                      <span>{item.label}</span>
+                      <span>{item.label} {isLocked && "🔒"}</span>
                     </button>
                   );
                 })}
@@ -180,18 +212,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {adminMenuItems.map(item => {
                   const Icon = item.icon;
                   const isActive = currentTab === item.id;
+                  const isLocked = currentPlan && (
+                    (item.id === "reports" && !currentPlan.canViewReports) ||
+                    (item.id === "renewals" && !currentPlan.canManageRenewals) ||
+                    (item.id === "classes" && !currentPlan.canManageClasses) ||
+                    (item.id === "audit" && !currentPlan.canViewHistory)
+                  );
                   return (
                     <button
                       key={item.id}
                       onClick={() => handleTabClick(item.id)}
                       className={`flex w-full items-center gap-3 rounded px-3 py-1.5 font-sans text-[13px] font-semibold transition-all ${
-                      isActive
-                        ? "bg-blue-600/20 text-white border-l-2 border-blue-500 rounded-r"
-                        : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                        isLocked ? "opacity-50" : ""
+                      } ${
+                        isActive
+                          ? "bg-blue-600/20 text-white border-l-2 border-blue-500 rounded-r"
+                          : "text-slate-400 hover:text-white hover:bg-slate-800/60"
                       }`}
                     >
                       <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-blue-450" : "text-slate-500"}`} />
-                      <span>{item.label}</span>
+                      <span>{item.label} {isLocked && "🔒"}</span>
                     </button>
                   );
                 })}

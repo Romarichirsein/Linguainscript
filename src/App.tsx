@@ -376,7 +376,7 @@ function LoginScreen() {
 }
 
 function DashboardContainer() {
-  const { firebaseUser, loading, currentUser, isLocalSession } = useData();
+  const { firebaseUser, loading, currentUser, isLocalSession, currentPlan } = useData();
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -430,6 +430,9 @@ function DashboardContainer() {
         return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
       
       case "newStudent":
+        if (currentPlan && !currentPlan.canCreateStudents) {
+          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+        }
         return <NewStudent setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
 
       case "students":
@@ -451,21 +454,36 @@ function DashboardContainer() {
         );
 
       case "waitlist":
+        if (currentPlan && !currentPlan.canManageWaitlist) {
+          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+        }
         return <Waitlist />;
 
       case "reports":
+        if (currentPlan && !currentPlan.canViewReports) {
+          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+        }
         return <Reports />;
 
       case "renewals":
+        if (currentPlan && !currentPlan.canManageRenewals) {
+          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+        }
         return <Renewals />;
 
       case "classes":
+        if (currentPlan && !currentPlan.canManageClasses) {
+          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+        }
         return <Classes />;
 
       case "settings":
         return <Settings />;
 
       case "audit":
+        if (currentPlan && !currentPlan.canViewHistory) {
+          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+        }
         return <AuditLog />;
 
       default:

@@ -1064,6 +1064,10 @@ export function SaaSManagement() {
                 { key: "canGenerateDocuments", label: "Génération de documents (certificats, factures)" },
                 { key: "canAdvancedSearch", label: "Recherche avancée & filtres" },
                 { key: "canViewHistory", label: "Consultation de l'historique" },
+                { key: "canViewReports", label: "Rapports financiers & statistiques" },
+                { key: "canManageWaitlist", label: "Gestion de la file d'attente (Waitlist)" },
+                { key: "canManageRenewals", label: "Gestion des renouvellements d'inscriptions" },
+                { key: "canManageClasses", label: "Gestion des classes & enseignants" },
               ] as const;
 
               return (

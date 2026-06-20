@@ -179,5 +179,9 @@ export interface PlanConfig {
   canGenerateDocuments: boolean;
   canAdvancedSearch: boolean;
   canViewHistory: boolean;
+  canViewReports: boolean;
+  canManageWaitlist: boolean;
+  canManageRenewals: boolean;
+  canManageClasses: boolean;
 }
 

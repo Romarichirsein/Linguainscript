@@ -150,6 +150,10 @@ const defaultPlansConfig: PlanConfig[] = [
     canGenerateDocuments: false,
     canAdvancedSearch: false,
     canViewHistory: false,
+    canViewReports: false,
+    canManageWaitlist: false,
+    canManageRenewals: false,
+    canManageClasses: false,
   },
   {
     id: "premium",
@@ -162,6 +166,10 @@ const defaultPlansConfig: PlanConfig[] = [
     canGenerateDocuments: false,
     canAdvancedSearch: true,
     canViewHistory: false,
+    canViewReports: false,
+    canManageWaitlist: true,
+    canManageRenewals: false,
+    canManageClasses: true,
   },
   {
     id: "integral",
@@ -174,6 +182,10 @@ const defaultPlansConfig: PlanConfig[] = [
     canGenerateDocuments: true,
     canAdvancedSearch: true,
     canViewHistory: true,
+    canViewReports: true,
+    canManageWaitlist: true,
+    canManageRenewals: true,
+    canManageClasses: true,
   }
 ];
 
@@ -181,7 +193,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [plansConfig, setPlansConfig] = useState<PlanConfig[]>(() => {
     try {
       const saved = localStorage.getItem("lingua_plansConfig");
-      return saved ? JSON.parse(saved) : defaultPlansConfig;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return defaultPlansConfig.map(def => {
+          const matchingSaved = parsed.find((p: any) => p.id === def.id);
+          return matchingSaved ? { ...def, ...matchingSaved } : def;
+        });
+      }
+      return defaultPlansConfig;
     } catch {
       return defaultPlansConfig;
     }
