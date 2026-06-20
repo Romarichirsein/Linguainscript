@@ -389,7 +389,8 @@ function DashboardContainer() {
     }
   }, [currentUser]);
 
-  if (loading || (firebaseUser && !currentUser)) {
+  // Show loading spinner while session is being resolved
+  if (loading) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 gap-3">
         <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
@@ -398,7 +399,19 @@ function DashboardContainer() {
     );
   }
 
-  if (!firebaseUser) {
+  // If firebase user exists but profile hasn't loaded yet, wait
+  if (firebaseUser && !currentUser) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 gap-3">
+        <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
+        <p className="font-sans text-xs font-semibold text-slate-550">Chargement de votre profil utilisateur...</p>
+      </div>
+    );
+  }
+
+  // For local/demo sessions, firebaseUser may be null after Firebase Auth fires,
+  // but currentUser is restored from localStorage — allow access
+  if (!firebaseUser && !(isLocalSession && currentUser)) {
     return <LoginScreen />;
   }
 

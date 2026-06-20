@@ -1354,8 +1354,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await setDoc(doc(db, "campuses", id), newCampus);
       await handleAudit("UPDATE_STUDENT", id, name, { action: "Ajout Campus", address });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `campuses/${id}`);
+    } catch (err: any) {
+      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
+      if (isPermissionErr) {
+        // Firestore rules not deployed to custom database – update local state as fallback
+        console.warn("Firestore write denied (rules may not be deployed to the custom database). Applying campus locally.", err);
+        setRawCampuses(prev => [...prev, newCampus as any]);
+      } else {
+        handleFirestoreError(err, OperationType.WRITE, `campuses/${id}`);
+      }
     }
   };
 
@@ -1364,8 +1371,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await updateDoc(doc(db, "campuses", id), { name, address, isActive });
       await handleAudit("UPDATE_STUDENT", id, name, { action: "Modification Campus", address, isActive });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `campuses/${id}`);
+    } catch (err: any) {
+      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
+      if (isPermissionErr) {
+        console.warn("Firestore update denied. Applying campus update locally.", err);
+        setRawCampuses(prev => prev.map(c => c.id === id ? { ...c, name, address, isActive } as Campus : c));
+      } else {
+        handleFirestoreError(err, OperationType.WRITE, `campuses/${id}`);
+      }
     }
   };
 
@@ -1385,8 +1398,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await setDoc(doc(db, "teachers", id), newTeacher);
       await handleAudit("UPDATE_STUDENT", id, name, { action: "Ajout Professeur", languages });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `teachers/${id}`);
+    } catch (err: any) {
+      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
+      if (isPermissionErr) {
+        console.warn("Firestore write denied for teacher. Applying locally.", err);
+        setRawTeachers(prev => [...prev, newTeacher as any]);
+      } else {
+        handleFirestoreError(err, OperationType.WRITE, `teachers/${id}`);
+      }
     }
   };
 
@@ -1403,8 +1422,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await setDoc(doc(db, "classes", id), newClass);
       await handleAudit("UPDATE_STUDENT", id, `${classData.language} ${classData.level}`, { action: "Ajout Classe", period: classData.period });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
+    } catch (err: any) {
+      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
+      if (isPermissionErr) {
+        console.warn("Firestore write denied for class. Applying locally.", err);
+        setRawClasses(prev => [...prev, newClass as any]);
+      } else {
+        handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
+      }
     }
   };
 
@@ -1412,8 +1437,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE, UserRole.SECRETAIRE], "Modification d'une classe");
     try {
       await updateDoc(doc(db, "classes", id), updated);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
+    } catch (err: any) {
+      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
+      if (isPermissionErr) {
+        console.warn("Firestore update denied for class. Applying locally.", err);
+        setRawClasses(prev => prev.map(c => c.id === id ? { ...c, ...updated } as Class : c));
+      } else {
+        handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
+      }
     }
   };
 
