@@ -29,7 +29,7 @@ export const StudentList: React.FC<StudentListProps> = ({
   selectedStudentId,
   setSelectedStudentId
 }) => {
-  const { students, classes, campuses, teachers, payments, addPayment, currentUser, currentSchool } = useData();
+  const { students, classes, campuses, teachers, payments, addPayment, currentUser, currentSchool, currentPlan } = useData();
 
   // Component states
   const [searchQuery, setSearchQuery] = useState("");
@@ -334,16 +334,26 @@ export const StudentList: React.FC<StudentListProps> = ({
           )}
         </div>
         <button
-          onClick={() => setShowFilters(!showFilters)}
+          onClick={() => {
+            if (!currentPlan.canAdvancedSearch) {
+              alert(`⚠️ Fonctionnalité Bloquée : Les Filtres Avancés ne sont pas disponibles avec le pack ${currentPlan.name}. Veuillez passer au pack Premium ou Intégral.`);
+              return;
+            }
+            setShowFilters(!showFilters);
+          }}
           className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all cursor-pointer ${
-            showFilters || filterCampus || filterLanguage || filterLevel || filterPeriod || filterStatus || filterDebt || filterEnrollmentDate || filterTag
+            !currentPlan.canAdvancedSearch
+              ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+              : showFilters || filterCampus || filterLanguage || filterLevel || filterPeriod || filterStatus || filterDebt || filterEnrollmentDate || filterTag
               ? "border-blue-500 bg-blue-50 text-blue-600"
               : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
           }`}
         >
           <SlidersHorizontal className="h-4.5 w-4.5" />
-          Filtres Avancés
-          <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+          Filtres Avancés {!currentPlan.canAdvancedSearch && "🔒"}
+          {currentPlan.canAdvancedSearch && (
+            <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+          )}
         </button>
       </div>
 
@@ -695,23 +705,43 @@ export const StudentList: React.FC<StudentListProps> = ({
 
                           {/* Quick Payment register */}
                           {hasDebt && (
-                            <button
-                              onClick={() => handleOpenFastPayment(student)}
-                              title="Enregistrer encaissement"
-                              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-emerald-600 transition-colors cursor-pointer"
-                            >
-                              <BadgeCent className="h-4.5 w-4.5" />
-                            </button>
-                          )}
+                             <button
+                               onClick={() => {
+                                 if (!currentPlan.canManageStudents) {
+                                   alert(`⚠️ Fonctionnalité Bloquée : La gestion des paiements n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Premium ou Intégral.`);
+                                   return;
+                                 }
+                                 handleOpenFastPayment(student);
+                               }}
+                               title={currentPlan.canManageStudents ? "Enregistrer encaissement" : "Enregistrer encaissement (Bloqué) 🔒"}
+                               className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                                 !currentPlan.canManageStudents
+                                   ? "text-slate-300 hover:bg-slate-50 cursor-not-allowed"
+                                   : "text-slate-500 hover:bg-slate-100 hover:text-emerald-600"
+                               }`}
+                             >
+                               <BadgeCent className="h-4.5 w-4.5" />
+                             </button>
+                           )}
 
                           {/* Print latest receipt */}
-                          <button
-                            onClick={() => handlePrintReceipt(student)}
-                            title="Générer reçu PDF"
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-purple-600 transition-colors cursor-pointer"
-                          >
-                            <Printer className="h-4.5 w-4.5" />
-                          </button>
+                           <button
+                             onClick={() => {
+                               if (!currentPlan.canGenerateReceipts) {
+                                 alert(`⚠️ Fonctionnalité Bloquée : La génération de reçus n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Premium ou Intégral.`);
+                                 return;
+                               }
+                               handlePrintReceipt(student);
+                             }}
+                             title={currentPlan.canGenerateReceipts ? "Générer reçu PDF" : "Générer reçu PDF (Bloqué) 🔒"}
+                             className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                               !currentPlan.canGenerateReceipts
+                                 ? "text-slate-300 hover:bg-slate-50 cursor-not-allowed"
+                                 : "text-slate-500 hover:bg-slate-100 hover:text-purple-600"
+                             }`}
+                           >
+                             <Printer className="h-4.5 w-4.5" />
+                           </button>
                         </div>
                       </td>
                     </tr>

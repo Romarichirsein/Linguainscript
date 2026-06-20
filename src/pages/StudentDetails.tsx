@@ -34,7 +34,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
   onBack,
   setCurrentTab
 }) => {
-  const { students, classes, campuses, teachers, payments, auditLogs, addPayment, renewStudent, schoolConfig, updateStudent, reminders, addReminder } = useData();
+  const { students, classes, campuses, teachers, payments, auditLogs, addPayment, renewStudent, schoolConfig, updateStudent, reminders, addReminder, currentPlan } = useData();
 
   const [activeSubTab, setActiveSubTab] = useState<"payments" | "history" | "reminders">("payments");
   const [sortAsc, setSortAsc] = useState<boolean>(true);
@@ -528,10 +528,18 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
             {/* Renewal button */}
             <div className="pt-2">
               <button
-                onClick={() => setShowRenewalModal(true)}
-                className="w-full flex justify-center items-center gap-1.5 rounded-xl border border-blue-600 py-2.5 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
+                onClick={() => {
+                  if (!currentPlan.canManageStudents) {
+                    alert(`⚠️ Fonctionnalité Bloquée : Le renouvellement d'inscription n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Premium ou Intégral pour débloquer cette fonctionnalité.`);
+                    return;
+                  }
+                  setShowRenewalModal(true);
+                }}
+                className={`w-full flex justify-center items-center gap-1.5 rounded-xl border border-blue-600 py-2.5 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-all cursor-pointer ${
+                  !currentPlan.canManageStudents ? "opacity-50 cursor-not-allowed" : ""
+                }`}
               >
-                <Clock className="h-4 w-4" /> Renouveler l'Inscription (+1 an)
+                <Clock className="h-4 w-4" /> {currentPlan.canManageStudents ? "" : "🔒 "}Renouveler l'Inscription (+1 an)
               </button>
             </div>
           </div>
@@ -545,10 +553,18 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
               Émettez instantanément le certificat académique officiel de l'élève basé sur le modèle configuré de l'école.
             </p>
             <button
-              onClick={() => generateCertificate(student, studentClass, studentCampus, schoolConfig)}
-              className="w-full flex justify-center items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white py-2.5 text-xs font-bold transition-all cursor-pointer shadow-md"
+              onClick={() => {
+                if (!currentPlan.canGenerateDocuments) {
+                  alert(`⚠️ Fonctionnalité Bloquée : La génération de documents académiques n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Intégral pour débloquer cette fonctionnalité.`);
+                  return;
+                }
+                generateCertificate(student, studentClass, studentCampus, schoolConfig);
+              }}
+              className={`w-full flex justify-center items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white py-2.5 text-xs font-bold transition-all cursor-pointer shadow-md ${
+                !currentPlan.canGenerateDocuments ? "opacity-50 cursor-not-allowed" : ""
+              }`}
             >
-              <FileText className="h-4 w-4 text-amber-450" /> Générer Certificat Scolaire
+              <FileText className="h-4 w-4 text-amber-450" /> {currentPlan.canGenerateDocuments ? "" : "🔒 "}Générer Certificat Scolaire
             </button>
           </div>
 
@@ -653,10 +669,18 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
               </h4>
               <button
                 type="button"
-                onClick={triggerExportInvoice}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100/80 dark:hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                onClick={() => {
+                  if (!currentPlan.canGenerateDocuments) {
+                    alert(`⚠️ Fonctionnalité Bloquée : La génération de facture n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Intégral pour débloquer cette fonctionnalité.`);
+                    return;
+                  }
+                  triggerExportInvoice();
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100/80 dark:hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition cursor-pointer ${
+                  !currentPlan.canGenerateDocuments ? "opacity-50 cursor-not-allowed" : ""
+                }`}
               >
-                <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Générer & Télécharger la Facture PDF
+                <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" /> {currentPlan.canGenerateDocuments ? "" : "🔒 "}Générer & Télécharger la Facture PDF
               </button>
             </div>
 
@@ -708,14 +732,22 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
               📢 Relances & Rappels ({studentReminders.length})
             </button>
             <button
-              onClick={() => setActiveSubTab("history")}
+              onClick={() => {
+                if (!currentPlan.canViewHistory) {
+                  alert(`⚠️ Fonctionnalité Bloquée : L'historique des modifications n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Premium ou Intégral pour débloquer cette fonctionnalité.`);
+                  return;
+                }
+                setActiveSubTab("history");
+              }}
               className={`pb-2 px-4 text-xs font-bold tracking-wider uppercase border-b-2 transition ${
+                !currentPlan.canViewHistory ? "opacity-50" : ""
+              } ${
                 activeSubTab === "history"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-400 hover:text-slate-600"
               }`}
             >
-              Historique des Modifications ({studentLogs.length})
+              Historique des Modifications {!currentPlan.canViewHistory && "🔒"} ({studentLogs.length})
             </button>
           </div>
 
@@ -724,57 +756,65 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
             <div className="space-y-6">
               {/* Register a payment helper form (Resolves Payment recording) */}
               {student.balance > 0 && (
-                <div className="rounded-2xl border border-slate-250 bg-slate-50/60 p-5 shadow-sm">
+                <div className="rounded-2xl border border-slate-250 bg-slate-50/60 p-5 shadow-sm relative overflow-hidden">
                   <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 mb-4">
                     <BadgeCent className="h-4.5 w-4.5 text-blue-600" /> Enregistrer un Complément d'Encaissement
                   </h4>
 
-                  <form onSubmit={handlePaySubmit} className="grid gap-4 sm:grid-cols-2 text-xs text-slate-700">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-semibold text-slate-650">Montant versé aujourd'hui (FCFA) *</label>
-                      <input
-                        type="number"
-                        required
-                        value={payAmount}
-                        onChange={e => setPayAmount(e.target.value)}
-                        placeholder="Ex: 50000"
-                        className="rounded-xl border border-slate-200 bg-white p-2 text-sm"
-                      />
+                  {!currentPlan.canManageStudents ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                      <p className="text-amber-800 font-medium">
+                        ⚠️ Fonctionnalité Bloquée : La gestion des paiements n'est pas disponible avec le pack {currentPlan.name}. Veuillez passer au pack Premium ou Intégral pour débloquer cette fonctionnalité.
+                      </p>
                     </div>
+                  ) : (
+                    <form onSubmit={handlePaySubmit} className="grid gap-4 sm:grid-cols-2 text-xs text-slate-700">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-semibold text-slate-650">Montant versé aujourd'hui (FCFA) *</label>
+                        <input
+                          type="number"
+                          required
+                          value={payAmount}
+                          onChange={e => setPayAmount(e.target.value)}
+                          placeholder="Ex: 50000"
+                          className="rounded-xl border border-slate-200 bg-white p-2 text-sm"
+                        />
+                      </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-semibold text-slate-650">Mode de règlement *</label>
-                      <select
-                        value={payMode}
-                        onChange={e => setPayMode(e.target.value as any)}
-                        className="rounded-xl border border-slate-200 bg-white p-2"
-                      >
-                        <option value="Espèces">Espèces</option>
-                        <option value="Mobile Money">Mobile Money (OM/Momo)</option>
-                        <option value="Virement">Virement bancaire</option>
-                      </select>
-                    </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-semibold text-slate-650">Mode de règlement *</label>
+                        <select
+                          value={payMode}
+                          onChange={e => setPayMode(e.target.value as any)}
+                          className="rounded-xl border border-slate-200 bg-white p-2"
+                        >
+                          <option value="Espèces">Espèces</option>
+                          <option value="Mobile Money">Mobile Money (OM/Momo)</option>
+                          <option value="Virement">Virement bancaire</option>
+                        </select>
+                      </div>
 
-                    <div className="flex flex-col gap-1.5 sm:col-span-2">
-                      <label className="font-semibold text-slate-650">Note / Justificatif (Optionnel)</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: Deuxième acompte frais de formation"
-                        value={payNote}
-                        onChange={e => setPayNote(e.target.value)}
-                        className="rounded-xl border border-slate-200 bg-white p-2"
-                      />
-                    </div>
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <label className="font-semibold text-slate-650">Note / Justificatif (Optionnel)</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Deuxième acompte frais de formation"
+                          value={payNote}
+                          onChange={e => setPayNote(e.target.value)}
+                          className="rounded-xl border border-slate-200 bg-white p-2"
+                        />
+                      </div>
 
-                    <div className="sm:col-span-2 flex justify-end">
-                      <button
-                        type="submit"
-                        className="rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer"
-                      >
-                        Enregistrer l'Émargement
-                      </button>
-                    </div>
-                  </form>
+                      <div className="sm:col-span-2 flex justify-end">
+                        <button
+                          type="submit"
+                          className="rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer"
+                        >
+                          Enregistrer l'Émargement
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               )}
 
@@ -857,11 +897,19 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
                             <td className="p-3 text-slate-500">{pay.recordedBy?.userName.split(" ")[0]}</td>
                             <td className="p-3 text-right">
                               <button
-                                onClick={() => triggerExportReceipt(pay)}
-                                title="Télécharger le reçu au format PDF"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 rounded-lg cursor-pointer transition-colors shadow-sm"
+                                onClick={() => {
+                                  if (!currentPlan.canGenerateReceipts) {
+                                    alert(`⚠️ Fonctionnalité Bloquée : La génération de reçus PDF n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Premium ou Intégral pour débloquer cette fonctionnalité.`);
+                                    return;
+                                  }
+                                  triggerExportReceipt(pay);
+                                }}
+                                title={currentPlan.canGenerateReceipts ? "Télécharger le reçu au format PDF" : "Générer reçu PDF (Bloqué) 🔒"}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 rounded-lg cursor-pointer transition-colors shadow-sm ${
+                                  !currentPlan.canGenerateReceipts ? "opacity-50 cursor-not-allowed" : ""
+                                }`}
                               >
-                                <span className="text-[12px] leading-none font-bold">📄</span> Reçu PDF
+                                <span className="text-[12px] leading-none font-bold">{currentPlan.canGenerateReceipts ? "📄" : "🔒"}</span> Reçu PDF
                               </button>
                             </td>
                           </tr>
@@ -1065,7 +1113,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
           )}
 
           {/* Sub-tab 2 CONTENTS: History logs vertical timeline (Satisfies history modifications requirement) */}
-          {activeSubTab === "history" && (
+          {activeSubTab === "history" && currentPlan.canViewHistory && (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h4 className="text-xs font-bold text-slate-800 border-b border-slate-150 pb-3 mb-5 flex items-center gap-1.5">
                 <History className="h-4.5 w-4.5 text-slate-400" /> Traceur de modifications dossier élève

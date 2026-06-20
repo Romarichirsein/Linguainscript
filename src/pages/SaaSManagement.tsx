@@ -20,7 +20,8 @@ import {
   ChevronUp, 
   Check, 
   Activity,
-  Download
+  Download,
+  ToggleLeft
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 
@@ -40,7 +41,9 @@ export function SaaSManagement() {
     rawPayments,
     rawAuditLogs,
     rawWaitlist,
-    rawReminders
+    rawReminders,
+    plansConfig,
+    updatePlanConfig
   } = useData();
 
   const handleDownloadBackup = () => {
@@ -75,7 +78,7 @@ export function SaaSManagement() {
   };
 
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<"dashboard" | "actions" | "help">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "actions" | "help" | "plans">("dashboard");
 
   // Create school fields
   const [newSchoolName, setNewSchoolName] = useState("");
@@ -348,6 +351,17 @@ export function SaaSManagement() {
           >
             <HelpCircle className="h-3 w-3 inline mr-1.5" />
             FAQ & Centre d'aide
+          </button>
+          <button
+            onClick={() => setActiveTab("plans")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer ${
+              activeTab === "plans" 
+                ? "bg-white text-slate-800 shadow-xs" 
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <ToggleLeft className="h-3.5 w-3.5 inline mr-1.5" />
+            Plans & Fonctionnalités
           </button>
         </div>
       </div>
@@ -999,6 +1013,161 @@ export function SaaSManagement() {
             <div>
               <strong className="text-indigo-950 font-sans block mb-1">Support d'Intégration d'Espace</strong>
               Si une directrice signale un problème d'accès, validez d'abord qu'elle s'est connectée avec la bonne adresse e-mail Gmail. Les directrices ont également accès à des options de personnalisation dynamiques (modification de leur slogan, logo de l'école par capture de caméra, et palettes thématiques) pour configurer leur propre campus.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: PLANS & FONCTIONNALITÉS */}
+      {activeTab === "plans" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header section */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="font-sans text-base font-bold text-slate-800 flex items-center gap-2">
+              <ToggleLeft className="h-5 w-5 text-indigo-650" /> Configuration des Plans d'Abonnement
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Gérez les fonctionnalités et les limites de chaque plan d'abonnement SaaS. Les modifications sont appliquées instantanément aux écoles concernées.
+            </p>
+          </div>
+
+          {/* Three plan cards grid */}
+          <div className="grid gap-6 md:grid-cols-3">
+            {plansConfig?.map((plan) => {
+              // Custom styles depending on plan
+              let themeColorClass = "indigo";
+              let accentBorderClass = "border-t-indigo-500";
+              let badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-150";
+              let activeToggleBg = "bg-indigo-605";
+
+              if (plan.id === "basique") {
+                themeColorClass = "emerald";
+                accentBorderClass = "border-t-emerald-500";
+                badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-150";
+                activeToggleBg = "bg-emerald-650";
+              } else if (plan.id === "premium") {
+                themeColorClass = "rose";
+                accentBorderClass = "border-t-rose-500";
+                badgeClass = "bg-rose-50 text-rose-700 border-rose-150";
+                activeToggleBg = "bg-rose-650";
+              } else if (plan.id === "integral") {
+                themeColorClass = "blue";
+                accentBorderClass = "border-t-blue-500";
+                badgeClass = "bg-blue-50 text-blue-700 border-blue-150";
+                activeToggleBg = "bg-blue-650";
+              }
+
+              const featuresList = [
+                { key: "canCreateStudents", label: "Création d'élèves" },
+                { key: "canManageStudents", label: "Gestion des élèves (modification, suppression)" },
+                { key: "canGenerateReceipts", label: "Génération de reçus PDF" },
+                { key: "canGenerateDocuments", label: "Génération de documents (certificats, factures)" },
+                { key: "canAdvancedSearch", label: "Recherche avancée & filtres" },
+                { key: "canViewHistory", label: "Consultation de l'historique" },
+              ] as const;
+
+              return (
+                <div 
+                  key={plan.id} 
+                  className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm border-t-4 ${accentBorderClass} hover:shadow-md transition-all duration-200 flex flex-col justify-between`}
+                >
+                  <div className="space-y-5">
+                    {/* Header */}
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-sans text-sm font-bold text-slate-800 capitalize">
+                        Plan {plan.name}
+                      </h4>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border capitalize ${badgeClass}`}>
+                        {plan.id}
+                      </span>
+                    </div>
+
+                    {/* Numeric parameters (Price, MaxStudents) */}
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-semibold text-slate-500">Tarif (FCFA/mois)</label>
+                        <input
+                          type="number"
+                          value={plan.price}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val)) {
+                              updatePlanConfig(plan.id, { price: val });
+                            }
+                          }}
+                          className="rounded-xl border border-slate-200 bg-slate-50/30 p-2 font-bold font-mono text-slate-800 focus:bg-white focus:border-indigo-500 transition-colors"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-semibold text-slate-500">Limite d'élèves</label>
+                        <input
+                          type="number"
+                          value={plan.maxStudents}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val)) {
+                              updatePlanConfig(plan.id, { maxStudents: val });
+                            }
+                          }}
+                          className="rounded-xl border border-slate-200 bg-slate-50/30 p-2 font-bold font-mono text-slate-800 focus:bg-white focus:border-indigo-500 transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Toggles section */}
+                    <div className="border-t border-slate-100 pt-4 space-y-3.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Fonctionnalités incluses
+                      </span>
+
+                      {featuresList.map((feat) => {
+                        const isChecked = plan[feat.key];
+                        return (
+                          <div key={feat.key} className="flex justify-between items-center gap-3">
+                            <span className="text-xs text-slate-650 leading-tight">
+                              {feat.label}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updatePlanConfig(plan.id, { [feat.key]: !isChecked });
+                              }}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                isChecked ? activeToggleBg : "bg-slate-250"
+                              }`}
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                  isChecked ? "translate-x-4" : "translate-x-0"
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className={`mt-6 rounded-xl p-3 text-[11px] leading-relaxed border ${
+                    plan.id === "basique" ? "bg-emerald-50/30 text-emerald-800 border-emerald-100/50" :
+                    plan.id === "premium" ? "bg-rose-50/30 text-rose-800 border-rose-100/50" :
+                    "bg-blue-50/30 text-blue-800 border-blue-100/50"
+                  }`}>
+                    {plan.id === "basique" && "Le pack Basique est destiné aux petites structures. L'accès aux outils de facturation, à l'historique et à la gestion avancée est bloqué par défaut."}
+                    {plan.id === "premium" && "Le pack Premium offre un compromis idéal avec un volume de 100 élèves et la recherche avancée. Les impressions de reçus et documents restent désactivées."}
+                    {plan.id === "integral" && "Le pack Intégral confère un accès illimité et complet à l'ensemble du système, incluant tous les modules d'impression et de traçabilité académique."}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Info note */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex items-start space-x-3 text-xs leading-relaxed text-slate-655">
+            <AlertCircle className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-slate-800 font-sans block mb-1">Impact en temps réel</strong>
+              Toute modification des prix, de la limite d'élèves ou des autorisations de fonctionnalités s'applique immédiatement à l'ensemble des écoles affiliées à ce plan. Assurez-vous de communiquer toute modification de tarif ou réduction de fonctionnalités à l'avance.
             </div>
           </div>
         </div>

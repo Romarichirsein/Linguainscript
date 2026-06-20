@@ -168,3 +168,16 @@ export interface Reminder {
   };
 }
 
+export interface PlanConfig {
+  id: "basique" | "premium" | "integral";
+  name: string;
+  price: number;
+  maxStudents: number;
+  canCreateStudents: boolean;
+  canManageStudents: boolean;
+  canGenerateReceipts: boolean;
+  canGenerateDocuments: boolean;
+  canAdvancedSearch: boolean;
+  canViewHistory: boolean;
+}
+

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
-import { Campus, Teacher, Class, Student, Payment, AuditLog, WaitlistEntry, UserProfile, UserRole, SchoolConfig, Reminder, School } from "../types";
+import { Campus, Teacher, Class, Student, Payment, AuditLog, WaitlistEntry, UserProfile, UserRole, SchoolConfig, Reminder, School, PlanConfig } from "../types";
 import {
   mockCampuses,
   mockTeachers,
@@ -85,6 +85,11 @@ interface DataContextType {
   addStaffUser: (name: string, email: string, role: UserRole, campusId: string | null, schoolId?: string | null, password?: string) => Promise<void>;
   deleteStaffUser: (userId: string) => Promise<void>;
 
+  // Plan Configurations
+  plansConfig: PlanConfig[];
+  updatePlanConfig: (planId: "basique" | "premium" | "integral", newConfig: Partial<PlanConfig>) => Promise<void>;
+  currentPlan: PlanConfig;
+
   // Data actions
   addStudent: (
     studentData: OmitStudentFields,
@@ -133,7 +138,63 @@ function mapDoc<T>(document: any): T {
   return result as T;
 }
 
+const defaultPlansConfig: PlanConfig[] = [
+  {
+    id: "basique",
+    name: "Basique",
+    price: 5000,
+    maxStudents: 20,
+    canCreateStudents: true,
+    canManageStudents: false,
+    canGenerateReceipts: false,
+    canGenerateDocuments: false,
+    canAdvancedSearch: false,
+    canViewHistory: false,
+  },
+  {
+    id: "premium",
+    name: "Premium",
+    price: 10000,
+    maxStudents: 100,
+    canCreateStudents: true,
+    canManageStudents: true,
+    canGenerateReceipts: false,
+    canGenerateDocuments: false,
+    canAdvancedSearch: true,
+    canViewHistory: false,
+  },
+  {
+    id: "integral",
+    name: "Intégral",
+    price: 15000,
+    maxStudents: 9999,
+    canCreateStudents: true,
+    canManageStudents: true,
+    canGenerateReceipts: true,
+    canGenerateDocuments: true,
+    canAdvancedSearch: true,
+    canViewHistory: true,
+  }
+];
+
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [plansConfig, setPlansConfig] = useState<PlanConfig[]>(() => {
+    try {
+      const saved = localStorage.getItem("lingua_plansConfig");
+      return saved ? JSON.parse(saved) : defaultPlansConfig;
+    } catch {
+      return defaultPlansConfig;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("lingua_plansConfig", JSON.stringify(plansConfig));
+    } catch (e) {
+      console.warn("localStorage plansConfig sync failed:", e);
+    }
+  }, [plansConfig]);
+
   const [firebaseUser, setFirebaseUser] = useState<any>(() => {
     try {
       const saved = localStorage.getItem("lingua_firebaseUser");
@@ -209,6 +270,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Current connected school info
   const currentSchool = schools.find(s => s.id === activeSchoolId) || null;
+  const currentPlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
 
   // 1. Connection test & Auth subscriber
   useEffect(() => {
@@ -446,6 +508,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Error loading campuses: ", err);
     });
 
+    const unsubPlansConfig = onSnapshot(collection(db, "plans_config"), async (snapshot) => {
+      const items = snapshot.docs.map(d => mapDoc<PlanConfig>(d));
+      if (items.length > 0) {
+        const order = { basique: 0, premium: 1, integral: 2 };
+        items.sort((a, b) => (order[a.id] ?? 99) - (order[b.id] ?? 99));
+        setPlansConfig(items);
+      } else {
+        const batch = writeBatch(db);
+        defaultPlansConfig.forEach(plan => {
+          batch.set(doc(db, "plans_config", plan.id), plan);
+        });
+        try {
+          await batch.commit();
+        } catch (e) {
+          console.warn("Firestore plans_config seed failed (using local):", e);
+        }
+      }
+    }, (err) => {
+      console.warn("Error loading plans config from Firestore, keeping local config:", err);
+    });
+
     const unsubTeachers = onSnapshot(collection(db, "teachers"), (snapshot) => {
       setRawTeachers(snapshot.docs.map(d => mapDoc<Teacher>(d)));
     }, (err) => handleFirestoreError(err, OperationType.GET, "teachers"));
@@ -517,6 +600,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       unsubCampuses();
+      unsubPlansConfig();
       unsubTeachers();
       unsubClasses();
       unsubStudents();
@@ -1056,11 +1140,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Check school's subscription plan rules
-    const isBasique = currentSchool?.subType === "basique";
-    if (isBasique && students.length >= 50) {
+    const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || plansConfig[0];
+    if (!activePlan.canCreateStudents) {
       return {
         success: false,
-        message: "⚠️ Limite atteinte : Votre école utilise le pack Basique (5 000 FCFA/mois) qui limite le nombre total d'élèves à 50. Veuillez passer au pack Premium ou Intégral pour s'inscrire au-delà."
+        message: `⚠️ Action bloquée : Votre plan d'abonnement actuel (${activePlan.name}) ne vous permet pas d'inscrire de nouveaux élèves.`
+      };
+    }
+    if (students.length >= activePlan.maxStudents) {
+      return {
+        success: false,
+        message: `⚠️ Limite atteinte : Votre école utilise le pack ${activePlan.name} qui limite le nombre total d'élèves à ${activePlan.maxStudents}. Veuillez modifier votre abonnement pour inscrire au-delà.`
       };
     }
 
@@ -1211,6 +1301,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateStudent = async (id: string, updated: StudentUpdate) => {
     if (!currentUser) return;
+    const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
+    if (!activePlan.canManageStudents) {
+      throw new Error(`⚠️ Action bloquée : Votre plan d'abonnement actuel (${activePlan.name}) ne vous permet pas de modifier ou de gérer les élèves.`);
+    }
     const studentRef = doc(db, "students", id);
     const existingStudent = students.find(s => s.id === id);
     if (!existingStudent) return;
@@ -1281,6 +1375,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addPayment = async (studentId: string, amount: number, mode: "Espèces" | "Mobile Money" | "Virement", note?: string) => {
     if (!currentUser) return;
+    const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
+    if (!activePlan.canManageStudents) {
+      throw new Error(`⚠️ Action bloquée : Votre plan d'abonnement actuel (${activePlan.name}) ne vous permet pas de gérer les paiements des élèves.`);
+    }
     const student = students.find(s => s.id === studentId);
     if (!student) return;
 
@@ -1324,6 +1422,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const renewStudent = async (id: string, newExpirationDate: string, cost: number, paymentAmount: number, mode: "Espèces" | "Mobile Money" | "Virement") => {
     if (!currentUser) return;
+    const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
+    if (!activePlan.canManageStudents) {
+      throw new Error(`⚠️ Action bloquée : Votre plan d'abonnement actuel (${activePlan.name}) ne vous permet pas de renouveler ou de modifier les inscriptions des élèves.`);
+    }
     const student = students.find(s => s.id === id);
     if (!student) return;
 
@@ -1411,6 +1513,30 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updatePlanConfig = async (planId: "basique" | "premium" | "integral", newConfig: Partial<PlanConfig>) => {
+    if (currentUser?.role !== UserRole.SUPERADMIN) {
+      throw new Error("Seul le Super Administrateur peut modifier la configuration des plans.");
+    }
+
+    const updatedPlans = plansConfig.map(p => {
+      if (p.id === planId) {
+        return { ...p, ...newConfig };
+      }
+      return p;
+    });
+
+    // Optimistic local state update
+    setPlansConfig(updatedPlans);
+
+    // Save to Firestore
+    try {
+      const planRef = doc(db, "plans_config", planId);
+      await updateDoc(planRef, newConfig as any);
+    } catch (error: any) {
+      console.warn("Firestore plansConfig update failed, updating local state only:", error);
+    }
+  };
+
   const addTeacher = async (name: string, phone: string, email: string, languages: string[], campusId: string) => {
     checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Enregistrement d'un professeur");
     const id = `teacher_${Date.now()}`;
@@ -1480,6 +1606,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const promoteFromWaitlist = async (waitlistId: string, paymentAmount: number, mode: "Espèces" | "Mobile Money" | "Virement") => {
     if (!currentUser) return { success: false, message: "Non authentifié" };
     
+    const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
+    if (!activePlan.canCreateStudents) {
+      return { success: false, message: "⚠️ Action bloquée : Votre plan d'abonnement actuel ne vous permet pas de créer de nouveaux élèves." };
+    }
+    if (!activePlan.canManageStudents) {
+      return { success: false, message: "⚠️ Action bloquée : Votre plan d'abonnement actuel ne vous permet pas de gérer ou de promouvoir les élèves." };
+    }
+    if (students.length >= activePlan.maxStudents) {
+      return { success: false, message: `⚠️ Limite de capacité atteinte : Votre école utilise le pack ${activePlan.name} qui limite le nombre total d'élèves à ${activePlan.maxStudents}.` };
+    }
+
     const entry = waitlist.find(w => w.id === waitlistId);
     if (!entry) return { success: false, message: "Entrée liste d'attente introuvable" };
 
@@ -1606,6 +1743,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const removeFromWaitlist = async (waitlistId: string) => {
     const entry = waitlist.find(w => w.id === waitlistId);
     if (!entry) return;
+
+    const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
+    if (!activePlan.canManageStudents) {
+      throw new Error(`⚠️ Action bloquée : Votre plan d'abonnement actuel (${activePlan.name}) ne vous permet pas de modifier ou de gérer les inscriptions de la liste d'attente.`);
+    }
 
     try {
       await deleteDoc(doc(db, "waitlist", waitlistId));
@@ -1834,6 +1976,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         renewSchoolSubscription,
         addStaffUser,
         deleteStaffUser,
+        plansConfig,
+        updatePlanConfig,
+        currentPlan,
         addStudent,
         updateStudent,
         addPayment,
