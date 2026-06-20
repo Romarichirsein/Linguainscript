@@ -111,107 +111,111 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Global Search Bar */}
-      <div ref={searchContainerRef} className="relative flex-1 max-w-[150px] sm:max-w-[240px] md:max-w-[320px] mx-2">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Rechercher un élève..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setIsSearchDropdownOpen(true);
-            }}
-            onFocus={() => setIsSearchDropdownOpen(true)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-1.5 px-3 pl-8 pr-8 text-[11px] font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 outline-none transition-all"
-          />
-          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-          {searchQuery && (
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                setIsSearchDropdownOpen(false);
+      {currentUser?.role !== UserRole.SUPERADMIN ? (
+        <div ref={searchContainerRef} className="relative flex-1 max-w-[150px] sm:max-w-[240px] md:max-w-[320px] mx-2">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Rechercher un élève..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsSearchDropdownOpen(true);
               }}
-              className="absolute right-2.5 top-2 p-0.5 text-slate-400 hover:text-slate-600 rounded transition-colors"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-
-        {/* Global Search Results Dropdown */}
-        {isSearchDropdownOpen && trimmedQuery !== "" && (
-          <div className="absolute right-0 sm:left-0 mt-2 w-72 sm:w-80 md:w-96 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-xl z-50 max-h-72 overflow-y-auto">
-            <div className="px-3 pb-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
-                Résultats ({filteredStudents.length})
-              </span>
-            </div>
-            {filteredStudents.length === 0 ? (
-              <p className="px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500 italic">Aucun élève trouvé</p>
-            ) : (
-              filteredStudents.map(student => {
-                const studentClass = classes.find(c => c.id === student.classId);
-                return (
-                  <button
-                    key={student.id}
-                    onClick={() => {
-                      if (setSelectedStudentId) {
-                        setSelectedStudentId(student.id);
-                      }
-                      setCurrentTab("students");
-                      setSearchQuery("");
-                      setIsSearchDropdownOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-50/50 dark:border-slate-800/60 flex items-center justify-between transition-colors last:border-b-0 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded bg-blue-105/10 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px] flex items-center justify-center font-bold shrink-0">
-                        {student.firstName[0]}{student.lastName[0]}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-snug truncate">
-                          {student.firstName} {student.lastName}
-                        </div>
-                        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate leading-none mt-0.5">
-                          {student.phone}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0 ml-2">
-                      {studentClass && (
-                        <span className="inline-block px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[9px] font-extrabold uppercase tracking-wide">
-                          {studentClass.language} {studentClass.level}
-                        </span>
-                      )}
-                      <span className={`block text-[9px] font-bold mt-0.5 ${
-                        student.status === "actif" 
-                          ? "text-emerald-600" 
-                          : student.status === "en_attente" 
-                          ? "text-amber-500" 
-                          : student.status === "terminé"
-                          ? "text-blue-600"
-                          : student.status === "archivé"
-                          ? "text-slate-400 dark:text-slate-500"
-                          : "text-red-500"
-                      }`}>
-                        {student.status === "actif" 
-                          ? "Actif" 
-                          : student.status === "en_attente" 
-                          ? "En attente" 
-                          : student.status === "terminé"
-                          ? "Terminé"
-                          : student.status === "archivé"
-                          ? "Archivé"
-                          : "Expiré"}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-1.5 px-3 pl-8 pr-8 text-[11px] font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 outline-none transition-all"
+            />
+            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setIsSearchDropdownOpen(false);
+                }}
+                className="absolute right-2.5 top-2 p-0.5 text-slate-400 hover:text-slate-600 rounded transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
             )}
           </div>
-        )}
-      </div>
+
+          {/* Global Search Results Dropdown */}
+          {isSearchDropdownOpen && trimmedQuery !== "" && (
+            <div className="absolute right-0 sm:left-0 mt-2 w-72 sm:w-80 md:w-96 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-xl z-50 max-h-72 overflow-y-auto">
+              <div className="px-3 pb-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                  Résultats ({filteredStudents.length})
+                </span>
+              </div>
+              {filteredStudents.length === 0 ? (
+                <p className="px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500 italic">Aucun élève trouvé</p>
+              ) : (
+                filteredStudents.map(student => {
+                  const studentClass = classes.find(c => c.id === student.classId);
+                  return (
+                    <button
+                      key={student.id}
+                      onClick={() => {
+                        if (setSelectedStudentId) {
+                          setSelectedStudentId(student.id);
+                        }
+                        setCurrentTab("students");
+                        setSearchQuery("");
+                        setIsSearchDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-50/50 dark:border-slate-800/60 flex items-center justify-between transition-colors last:border-b-0 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded bg-blue-105/10 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px] flex items-center justify-center font-bold shrink-0">
+                          {student.firstName[0]}{student.lastName[0]}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-snug truncate">
+                            {student.firstName} {student.lastName}
+                          </div>
+                          <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate leading-none mt-0.5">
+                            {student.phone}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        {studentClass && (
+                          <span className="inline-block px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[9px] font-extrabold uppercase tracking-wide">
+                            {studentClass.language} {studentClass.level}
+                          </span>
+                        )}
+                        <span className={`block text-[9px] font-bold mt-0.5 ${
+                          student.status === "actif" 
+                            ? "text-emerald-600" 
+                            : student.status === "en_attente" 
+                            ? "text-amber-500" 
+                            : student.status === "terminé"
+                            ? "text-blue-600"
+                            : student.status === "archivé"
+                            ? "text-slate-400 dark:text-slate-500"
+                            : "text-red-500"
+                        }`}>
+                          {student.status === "actif" 
+                            ? "Actif" 
+                            : student.status === "en_attente" 
+                            ? "En attente" 
+                            : student.status === "terminé"
+                            ? "Terminé"
+                            : student.status === "archivé"
+                            ? "Archivé"
+                            : "Expiré"}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex-1" />
+      )}
 
       {/* Right Items: Actions, Alerts, Database Reset */}
       <div className="flex items-center gap-3">
@@ -265,86 +269,88 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Notification Bell Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setShowAlertsDropdown(!showAlertsDropdown)}
-            className="relative rounded p-1.5 text-slate-550 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none transition-colors"
-          >
-            <Bell className="h-4.5 w-4.5 text-slate-600 dark:text-slate-300" />
-            {totalAlerts > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+        {currentUser?.role !== UserRole.SUPERADMIN && (
+          <div className="relative">
+            <button
+              onClick={() => setShowAlertsDropdown(!showAlertsDropdown)}
+              className="relative rounded p-1.5 text-slate-550 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none transition-colors"
+            >
+              <Bell className="h-4.5 w-4.5 text-slate-600 dark:text-slate-300" />
+              {totalAlerts > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+              )}
+            </button>
+
+            {showAlertsDropdown && (
+              <div className="absolute right-0 mt-2.5 w-80 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-xl z-50">
+                <div className="flex items-center justify-between px-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Alertes prioritaires ({totalAlerts})</span>
+                  {totalAlerts > 0 && (
+                    <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  )}
+                </div>
+                <div className="max-h-72 overflow-y-auto">
+                  {totalAlerts === 0 ? (
+                    <p className="px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500">Aucune alerte en attente</p>
+                  ) : (
+                    <>
+                      {/* Expirations alert cells */}
+                      {expiringStudents.map(student => (
+                        <button
+                          key={student.id}
+                          onClick={() => handleAlertClick("students", student.id)}
+                          className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
+                        >
+                          <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Expiration imminente</p>
+                            <p className="text-[11px] text-slate-550 dark:text-slate-400">
+                              L'inscription de <b>{student.firstName} {student.lastName}</b> expire bientôt.
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+
+                      {/* Unpaid balances alerts */}
+                      {debtStudents.map(student => (
+                        <button
+                          key={student.id}
+                          onClick={() => handleAlertClick("students", student.id)}
+                          className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
+                        >
+                          <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Solde restant à recouvrer</p>
+                            <p className="text-[11px] text-slate-550 dark:text-slate-400">
+                              <b>{student.firstName} {student.lastName}</b> doit encore <b>{student.balance.toLocaleString()} FCFA</b>.
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+
+                      {/* Waitlist warnings */}
+                      {waitlistClasses.map(cls => (
+                        <button
+                          key={cls.id}
+                          onClick={() => handleAlertClick("waitlist")}
+                          className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
+                        >
+                          <UserCheck className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Classe complète & File</p>
+                            <p className="text-[11px] text-slate-550 dark:text-slate-400">
+                              La classe <b>{cls.language} {cls.level}</b> est pleine avec des élèves en attente.
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
             )}
-          </button>
-
-          {showAlertsDropdown && (
-            <div className="absolute right-0 mt-2.5 w-80 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-xl z-50">
-              <div className="flex items-center justify-between px-4 pb-2 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Alertes prioritaires ({totalAlerts})</span>
-                {totalAlerts > 0 && (
-                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                )}
-              </div>
-              <div className="max-h-72 overflow-y-auto">
-                {totalAlerts === 0 ? (
-                  <p className="px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500">Aucune alerte en attente</p>
-                ) : (
-                  <>
-                    {/* Expirations alert cells */}
-                    {expiringStudents.map(student => (
-                      <button
-                        key={student.id}
-                        onClick={() => handleAlertClick("students", student.id)}
-                        className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
-                      >
-                        <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Expiration imminente</p>
-                          <p className="text-[11px] text-slate-550 dark:text-slate-400">
-                            L'inscription de <b>{student.firstName} {student.lastName}</b> expire bientôt.
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-
-                    {/* Unpaid balances alerts */}
-                    {debtStudents.map(student => (
-                      <button
-                        key={student.id}
-                        onClick={() => handleAlertClick("students", student.id)}
-                        className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
-                      >
-                        <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Solde restant à recouvrer</p>
-                          <p className="text-[11px] text-slate-550 dark:text-slate-400">
-                            <b>{student.firstName} {student.lastName}</b> doit encore <b>{student.balance.toLocaleString()} FCFA</b>.
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-
-                    {/* Waitlist warnings */}
-                    {waitlistClasses.map(cls => (
-                      <button
-                        key={cls.id}
-                        onClick={() => handleAlertClick("waitlist")}
-                        className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
-                      >
-                        <UserCheck className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Classe complète & File</p>
-                          <p className="text-[11px] text-slate-550 dark:text-slate-400">
-                            La classe <b>{cls.language} {cls.level}</b> est pleine avec des élèves en attente.
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </header>
   );
