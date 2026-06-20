@@ -108,7 +108,8 @@ export const Reports: React.FC = () => {
   // Group statistical lists
   // 1. Details by Language
   const languageStats = useMemo(() => {
-    const uniqueLanguages = ["Allemand", "Espagnol", "Italien", "Portugais", "Anglais", "Français"];
+    const defaultLangs = ["Allemand", "Anglais", "Chinois", "Espagnol", "Français", "Italien", "Portugais", "Russe"];
+    const uniqueLanguages = Array.from(new Set([...defaultLangs, ...classes.map(c => c.language)])).sort();
     return uniqueLanguages.map(lang => {
       const langStudents = periodStudents.filter(s => {
         const cls = classes.find(c => c.id === s.classId);

@@ -1107,12 +1107,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           message: `Élève ajouté avec succès en liste d'attente (Position ${position}).`
         };
       } catch (err: any) {
-        handleFirestoreError(err, OperationType.WRITE, `waitlist/${waitlistId}`);
         if (err?.code === "permission-denied" || err?.message?.includes("Missing or insufficient permissions")) {
           console.warn("OPTIMISTIC FALLBACK: Adding waitlist entry locally.");
           setRawWaitlist(prev => [...prev, newWaitlistEntry]);
           return { success: true, waitlistId, message: `Élève ajouté localement en liste d'attente (Mode Hors-Ligne/Démo).` };
         }
+        handleFirestoreError(err, OperationType.WRITE, `waitlist/${waitlistId}`);
         return { success: false, message: "Erreur lors de l'ajout en liste d'attente" };
       }
     }
@@ -1180,7 +1180,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         message: "Élève inscrit avec succès !"
       };
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.WRITE, `students/${studentId}`);
       if (err?.code === "permission-denied" || err?.message?.includes("Missing or insufficient permissions")) {
         console.warn("OPTIMISTIC FALLBACK: Adding student locally to bypass rules block.");
         const fallbackStudent = { ...newStudent, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
@@ -1202,6 +1201,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return { success: true, studentId, message: "Élève inscrit localement avec succès (Mode Hors-Ligne/Démo) !" };
       }
+      handleFirestoreError(err, OperationType.WRITE, `students/${studentId}`);
       return { success: false, message: "Erreur lors de l'inscription de l'élève" };
     }
   };

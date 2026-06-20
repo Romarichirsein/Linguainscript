@@ -55,7 +55,6 @@ export const StudentList: React.FC<StudentListProps> = ({
   const isDirectrice = currentUser?.role === "directrice";
   const userCampusId = currentUser?.campusId;
 
-  // Dynamically calculate available tags
   const availableTags = useMemo(() => {
     const allTags = new Set<string>();
     students.forEach(s => {
@@ -65,6 +64,11 @@ export const StudentList: React.FC<StudentListProps> = ({
     defaults.forEach(d => allTags.add(d));
     return Array.from(allTags);
   }, [students]);
+
+  const uniqueLanguages = useMemo(() => {
+    const defaultLangs = ["Allemand", "Anglais", "Chinois", "Espagnol", "Français", "Italien", "Portugais", "Russe"];
+    return Array.from(new Set([...defaultLangs, ...classes.map(c => c.language)])).sort();
+  }, [classes]);
 
   // Multi-filter matching pipeline
   const filteredStudents = useMemo(() => {
@@ -372,12 +376,9 @@ export const StudentList: React.FC<StudentListProps> = ({
               className="rounded-xl border border-slate-200 p-2 text-xs text-slate-700 bg-white"
             >
               <option value="">Toutes les Langues</option>
-              <option value="Allemand">Allemand</option>
-              <option value="Espagnol">Espagnol</option>
-              <option value="Italien">Italien</option>
-              <option value="Portugais">Portugais</option>
-              <option value="Anglais">Anglais</option>
-              <option value="Français">Français</option>
+              {uniqueLanguages.map(lang => (
+                <option key={lang} value={lang}>{lang}</option>
+              ))}
             </select>
           </div>
 

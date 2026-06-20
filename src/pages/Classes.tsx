@@ -24,6 +24,12 @@ export const Classes: React.FC = () => {
     updateClass
   } = useData();
 
+  // Dynamic languages extraction
+  const uniqueLanguages = useMemo(() => {
+    const defaultLangs = ["Allemand", "Anglais", "Chinois", "Espagnol", "Français", "Italien", "Portugais", "Russe"];
+    return Array.from(new Set([...defaultLangs, ...classes.map(c => c.language)])).sort();
+  }, [classes]);
+
   const [activeSegment, setActiveSegment] = useState<"classes" | "teachers" | "campuses">("classes");
 
   // Standard Modals controls
@@ -394,19 +400,19 @@ export const Classes: React.FC = () => {
                 {/* Lang Select */}
                 <div className="flex flex-col gap-1.5">
                   <label className="font-semibold text-slate-650">Langue du cours</label>
-                  <select
+                  <input
+                    type="text"
+                    list="language-options"
                     value={classLang}
                     onChange={e => setClassLang(e.target.value)}
+                    placeholder="Saisir ou choisir..."
                     className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
-                  >
-                    <option value="Allemand">Allemand</option>
-                    <option value="Espagnol">Espagnol</option>
-                    <option value="Italien">Italien</option>
-                    <option value="Portugais">Portugais</option>
-                    <option value="Anglais">Anglais</option>
-                    <option value="Français">Français</option>
-                    <option value="Italien">Italien</option>
-                  </select>
+                  />
+                  <datalist id="language-options">
+                    {uniqueLanguages.map(lang => (
+                      <option key={lang} value={lang} />
+                    ))}
+                  </datalist>
                 </div>
 
                 {/* Level Select */}
@@ -632,16 +638,16 @@ export const Classes: React.FC = () => {
 
               {/* Languages checkboxes spec list */}
               <div className="flex flex-col gap-1.5">
-                <label className="font-semibold text-slate-650">Langues enseignées (Choisir au moins 1) *</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {["Allemand", "Espagnol", "Italien", "Portugais", "Anglais", "Français"].map(lang => {
+                <label className="font-semibold text-slate-650">Langues enseignées (Choisir ou ajouter) *</label>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {uniqueLanguages.map(lang => {
                     const active = teacherLangs.includes(lang);
                     return (
                       <button
                         type="button"
                         key={lang}
                         onClick={() => toggleLangSpec(lang)}
-                        className={`rounded-xl border p-2 text-center text-[11px] font-bold cursor-pointer transition ${
+                        className={`rounded-xl border px-3 py-1.5 text-center text-[11px] font-bold cursor-pointer transition ${
                           active
                             ? "border-blue-500 bg-blue-50 text-blue-600"
                             : "border-slate-200 hover:bg-slate-50"
@@ -651,6 +657,23 @@ export const Classes: React.FC = () => {
                       </button>
                     );
                   })}
+                  {/* Custom language input */}
+                  <input
+                    type="text"
+                    placeholder="Autre langue..."
+                    className="rounded-xl border border-slate-200 px-3 py-1 text-[11px] outline-none focus:border-blue-500 w-32"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const val = e.currentTarget.value.trim();
+                        if (val && !teacherLangs.includes(val)) {
+                          toggleLangSpec(val);
+                          e.currentTarget.value = "";
+                        }
+                      }
+                    }}
+                  />
+                  <span className="text-[9px] text-slate-400 -ml-1">(Entrée pour valider)</span>
                 </div>
               </div>
 
