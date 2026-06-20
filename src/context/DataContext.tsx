@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { Campus, Teacher, Class, Student, Payment, AuditLog, WaitlistEntry, UserProfile, UserRole, SchoolConfig, Reminder, School } from "../types";
 import {
   mockCampuses,
@@ -133,9 +133,51 @@ function mapDoc<T>(document: any): T {
 }
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem("lingua_firebaseUser");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem("lingua_currentUser");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
+
+  // Flag to track local/demo sessions where Firebase Auth is not used
+  // This prevents onAuthStateChanged from overriding manually set mock users
+  const isLocalSession = useRef(localStorage.getItem("lingua_isLocalSession") === "true");
+
+  useEffect(() => {
+    try {
+      if (firebaseUser) {
+        localStorage.setItem("lingua_firebaseUser", JSON.stringify(firebaseUser));
+      } else {
+        localStorage.removeItem("lingua_firebaseUser");
+      }
+    } catch (e) {
+      console.warn("localStorage sync failed:", e);
+    }
+  }, [firebaseUser]);
+
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem("lingua_currentUser", JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem("lingua_currentUser");
+      }
+    } catch (e) {
+      console.warn("localStorage sync failed:", e);
+    }
+  }, [currentUser]);
 
   // SaaS states
   const [schools, setSchools] = useState<School[]>([]);
@@ -181,6 +223,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     testConnection();
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      // If we're in a local/demo session and Firebase fires null, don't override
+      if (!user && isLocalSession.current) {
+        setLoading(false);
+        return;
+      }
       setFirebaseUser(user);
       if (user) {
         const userRef = doc(db, "users", user.uid);
@@ -786,34 +833,38 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const deterministicPassword = `${cleanEmail}_lingua_auth_2026`;
       let firebaseAuthUser: any = null;
+      let firebaseUid = resolvedProfile.id;
 
       try {
-        const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, deterministicPassword);
-        firebaseAuthUser = userCredential.user;
-      } catch (authErr: any) {
-        if (
-          authErr.code === "auth/user-not-found" ||
-          authErr.code === "auth/invalid-credential" ||
-          authErr.code === "auth/wrong-password" ||
-          (authErr.message && (
-            authErr.message.includes("user-not-found") ||
-            authErr.message.includes("invalid-credential") ||
-            authErr.message.includes("wrong-password")
-          ))
-        ) {
-          const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, deterministicPassword);
+        try {
+          const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, deterministicPassword);
           firebaseAuthUser = userCredential.user;
-        } else {
-          throw authErr;
+        } catch (authErr: any) {
+          if (
+            authErr.code === "auth/user-not-found" ||
+            authErr.code === "auth/invalid-credential" ||
+            authErr.code === "auth/wrong-password" ||
+            (authErr.message && (
+              authErr.message.includes("user-not-found") ||
+              authErr.message.includes("invalid-credential") ||
+              authErr.message.includes("wrong-password")
+            ))
+          ) {
+            const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, deterministicPassword);
+            firebaseAuthUser = userCredential.user;
+          } else {
+            throw authErr;
+          }
         }
-      }
-
-      // Use the resulting Firebase Auth user UID (available via auth.currentUser.uid) as the profile ID.
-      // Set firebaseUser with this UID, and save the updated profile to Firestore using setDoc(doc(db, "users", mockFUser.uid), updatedProfile).
-      // Set the React states firebaseUser and currentUser accordingly.
-      const firebaseUid = auth.currentUser?.uid || firebaseAuthUser?.uid || "";
-      if (!firebaseUid) {
-        throw new Error("Impossible de récupérer l'identifiant Firebase Auth.");
+        firebaseUid = auth.currentUser?.uid || firebaseAuthUser?.uid || resolvedProfile.id;
+      } catch (authErr: any) {
+        console.warn(
+          "Firebase Auth email/password method failed (make sure it is enabled in your Firebase console under Authentication -> Sign-in Method). Logging in with a local session instead.",
+          authErr
+        );
+        // Mark this as a local session so onAuthStateChanged won't override our mock user
+        isLocalSession.current = true;
+        localStorage.setItem("lingua_isLocalSession", "true");
       }
 
       const mockFUser = {
@@ -830,7 +881,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: firebaseUid
       };
 
-      await setDoc(doc(db, "users", mockFUser.uid), updatedProfile);
+      try {
+        await setDoc(doc(db, "users", firebaseUid), updatedProfile);
+      } catch (dbErr) {
+        console.error("Failed writing demo session profile to Firestore:", dbErr);
+      }
 
       setFirebaseUser(mockFUser);
       setCurrentUser(updatedProfile);
@@ -845,6 +900,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginAsDemoUser = async (email: string, name: string, role: UserRole, schoolId: string | null) => {
     setLoading(true);
+    isLocalSession.current = true;
+    localStorage.setItem("lingua_isLocalSession", "true");
     const mockUid = `demo_${role}_${Date.now()}`;
     const mockFUser = {
       uid: mockUid,
@@ -877,6 +934,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    // Clear local session flag so onAuthStateChanged can work normally on next login
+    isLocalSession.current = false;
+    localStorage.removeItem("lingua_isLocalSession");
+    localStorage.removeItem("lingua_firebaseUser");
+    localStorage.removeItem("lingua_currentUser");
     try {
       await signOut(auth);
     } catch (err) {

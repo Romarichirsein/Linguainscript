@@ -48,31 +48,49 @@ export const Classes: React.FC = () => {
   const [classStartDate, setClassStartDate] = useState("2026-06-01");
   const [classEndDate, setClassEndDate] = useState("2027-06-01");
 
-  const handleCreateCampus = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCreateCampus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!campusName || !campusAddress) return;
-    addCampus(campusName, campusAddress);
-    setCampusName("");
-    setCampusAddress("");
-    setShowCampusModal(false);
+    setIsSubmitting(true);
+    try {
+      await addCampus(campusName, campusAddress);
+      setCampusName("");
+      setCampusAddress("");
+      setShowCampusModal(false);
+    } catch (err: any) {
+      console.error("Erreur lors de la création du campus:", err);
+      alert("Erreur lors de la création du campus : " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleCreateTeacher = (e: React.FormEvent) => {
+  const handleCreateTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teacherName || !teacherCampusId || teacherLangs.length === 0) {
       alert("Veuillez remplir les informations obligatoires (Nom, Campus d'attache, et Langues spécialisées).");
       return;
     }
-    addTeacher(teacherName, teacherPhone, teacherEmail, teacherLangs, teacherCampusId);
-    setTeacherName("");
-    setTeacherPhone("");
-    setTeacherEmail("");
-    setTeacherLangs([]);
-    setTeacherCampusId("");
-    setShowTeacherModal(false);
+    setIsSubmitting(true);
+    try {
+      await addTeacher(teacherName, teacherPhone, teacherEmail, teacherLangs, teacherCampusId);
+      setTeacherName("");
+      setTeacherPhone("");
+      setTeacherEmail("");
+      setTeacherLangs([]);
+      setTeacherCampusId("");
+      setShowTeacherModal(false);
+    } catch (err: any) {
+      console.error("Erreur lors de l'enregistrement de l'enseignant:", err);
+      alert("Erreur lors de l'enregistrement de l'enseignant : " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleCreateClass = (e: React.FormEvent) => {
+  const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!classTeacherId || !classCampusId) {
       alert("Veuillez assigner un Professeur et un Campus.");
@@ -81,20 +99,26 @@ export const Classes: React.FC = () => {
     const max = parseInt(classMaxStudents);
     if (isNaN(max) || max <= 0) return;
 
-    addClass({
-      language: classLang,
-      level: classLevel,
-      period: classPeriod,
-      teacherId: classTeacherId,
-      campusId: classCampusId,
-      maxStudents: max,
-      startDate: classStartDate,
-      endDate: classEndDate
-    });
-
-    // Reset Class values
-    setClassMaxStudents("20");
-    setShowClassModal(false);
+    setIsSubmitting(true);
+    try {
+      await addClass({
+        language: classLang,
+        level: classLevel,
+        period: classPeriod,
+        teacherId: classTeacherId,
+        campusId: classCampusId,
+        maxStudents: max,
+        startDate: classStartDate,
+        endDate: classEndDate
+      });
+      setClassMaxStudents("20");
+      setShowClassModal(false);
+    } catch (err: any) {
+      console.error("Erreur lors de la création de la classe:", err);
+      alert("Erreur lors de la création de la classe : " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleLangSpec = (lang: string) => {
@@ -492,9 +516,10 @@ export const Classes: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
                 >
-                  Planifier la Classe
+                  {isSubmitting ? "Planification..." : "Planifier la Classe"}
                 </button>
               </div>
             </form>
@@ -548,9 +573,10 @@ export const Classes: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
                 >
-                  Créer le Campus
+                  {isSubmitting ? "Création..." : "Créer le Campus"}
                 </button>
               </div>
             </form>
@@ -653,9 +679,10 @@ export const Classes: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
                 >
-                  Enregistrer l'Enseignant
+                  {isSubmitting ? "Enregistrement..." : "Enregistrer l'Enseignant"}
                 </button>
               </div>
             </form>
