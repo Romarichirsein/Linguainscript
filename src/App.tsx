@@ -376,7 +376,7 @@ function LoginScreen() {
 }
 
 function DashboardContainer() {
-  const { firebaseUser, loading, currentUser } = useData();
+  const { firebaseUser, loading, currentUser, isLocalSession } = useData();
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -484,6 +484,26 @@ function DashboardContainer() {
           focusMode={focusMode}
           setFocusMode={setFocusMode}
         />
+
+        {/* Demo/offline session warning banner */}
+        {isLocalSession && (
+          <div className="bg-amber-500 text-slate-950 font-sans text-xs px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md z-10 border-b border-amber-600/30">
+            <div className="flex items-center gap-2">
+              <span className="text-sm shrink-0">⚠️</span>
+              <p className="font-semibold leading-relaxed">
+                <strong>Mode Démo / Hors-ligne :</strong> L'authentification Firebase a échoué (vérifiez si la méthode de connexion <strong>E-mail/Mot de passe</strong> est activée dans votre console Firebase). Les modifications ne seront pas sauvegardées sur le serveur.
+              </p>
+            </div>
+            <a
+              href="https://console.firebase.google.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="bg-slate-950 hover:bg-slate-900 text-white px-3.5 py-1.5 rounded-xl text-[10px] font-bold uppercase transition tracking-wider shrink-0 text-center"
+            >
+              Activer E-mail/Mot de passe
+            </a>
+          </div>
+        )}
 
         {/* Dynamic Inner view */}
         <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-6">

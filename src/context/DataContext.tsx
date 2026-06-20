@@ -49,6 +49,7 @@ interface DataContextType {
   currentUser: UserProfile | null;
   firebaseUser: FirebaseUser | null;
   loading: boolean;
+  isLocalSession: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithPassword: (email: string, password: string) => Promise<void>;
   loginAsDemoUser: (email: string, name: string, role: UserRole, schoolId: string | null) => Promise<void>;
@@ -1750,6 +1751,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         firebaseUser,
         loading,
+        isLocalSession: isLocalSession.current,
         loginWithGoogle,
         loginWithPassword,
         loginAsDemoUser,
