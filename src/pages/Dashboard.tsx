@@ -87,6 +87,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
   const [relanceLoadingId, setRelanceLoadingId] = useState<string | null>(null);
   const [panelFeedback, setPanelFeedback] = useState<{ id: string; type: "relance" | "complet" | "expiration"; msg: string } | null>(null);
 
+  // Synchronize default campus IDs with actual data (solves empty dashboard for directrice)
+  React.useEffect(() => {
+    if (campuses.length > 0) {
+      if (selectedCampusId !== "all" && !campuses.some(c => c.id === selectedCampusId)) {
+        setSelectedCampusId(userCampusId && campuses.some(c => c.id === userCampusId) ? userCampusId : campuses[0].id);
+      }
+      if (!campuses.some(c => c.id === targetCampusId)) {
+        setTargetCampusId(userCampusId && campuses.some(c => c.id === userCampusId) ? userCampusId : campuses[0].id);
+      }
+    }
+  }, [campuses, selectedCampusId, targetCampusId, userCampusId]);
+
   // Derived properties for Quick Add Class Selection
   const quickAddCampusClasses = useMemo(() => {
     return classes.filter(c => c.campusId === targetCampusId && c.isActive);
@@ -115,7 +127,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
     setEmail("");
     setParentName("");
     setParentPhone("");
-    setTargetCampusId(userCampusId || "campus_01");
+    setTargetCampusId(userCampusId && campuses.some(c => c.id === userCampusId) ? userCampusId : (campuses.length > 0 ? campuses[0].id : ""));
     setSelectedClassId("");
     setTotalCost("180000");
     setPaidAmount("80000");

@@ -46,9 +46,17 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
   const [payMode, setPayMode] = useState<"Espèces" | "Mobile Money" | "Virement">("Espèces");
   const [payNote, setPayNote] = useState("");
 
-  // Stepper state
   const [step, setStep] = useState(1);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+
+  // Synchronize default campusId with actual data (solves empty dropdown issue for directrice)
+  React.useEffect(() => {
+    if (campuses.length > 0) {
+      if (!campuses.some(c => c.id === campusId)) {
+        setCampusId(userCampusId && campuses.some(c => c.id === userCampusId) ? userCampusId : campuses[0].id);
+      }
+    }
+  }, [campuses, campusId, userCampusId]);
 
   // Cascading Filter Logic derived from the database
   // 1. Get classes matching selected campus
