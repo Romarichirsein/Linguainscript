@@ -33,7 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { t } = useTranslation();
   const isDirectrice = currentUser?.role === UserRole.DIRECTRICE;
   const isSuperAdmin = currentUser?.role === UserRole.SUPERADMIN;
-  const canSeeAdminMenu = isDirectrice || isSuperAdmin;
+  const canSeeAdminMenu = isDirectrice; // SuperAdmin does NOT manage students
 
   const handleTabClick = (tabId: string) => {
     setCurrentTab(tabId);
@@ -121,31 +121,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Menu */}
         <div className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
-          <div>
-            <p className="px-2 font-sans text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2">
-              {t("mainMenu")}
-            </p>
-            <nav className="space-y-1">
-              {menuItems.map(item => {
-                const Icon = item.icon;
-                const isActive = currentTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabClick(item.id)}
-                    className={`flex w-full items-center gap-3 rounded px-3 py-1.5 font-sans text-[13px] font-semibold transition-all ${
-                      isActive
-                        ? "bg-blue-600/20 text-white border-l-2 border-blue-500 rounded-r"
-                        : "text-slate-400 hover:text-white hover:bg-slate-800/60"
-                    }`}
-                  >
-                    <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-blue-450" : "text-slate-500"}`} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
 
           {isSuperAdmin && (
             <div>
@@ -164,6 +139,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <LayoutDashboard className="h-4 w-4 shrink-0 text-indigo-400" />
                   <span>Gestion SaaS Global</span>
                 </button>
+              </nav>
+            </div>
+          )}
+
+          {!isSuperAdmin && (
+            <div>
+              <p className="px-2 font-sans text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2">
+                {t("mainMenu")}
+              </p>
+              <nav className="space-y-1">
+                {menuItems.map(item => {
+                  const Icon = item.icon;
+                  const isActive = currentTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleTabClick(item.id)}
+                      className={`flex w-full items-center gap-3 rounded px-3 py-1.5 font-sans text-[13px] font-semibold transition-all ${
+                        isActive
+                          ? "bg-blue-600/20 text-white border-l-2 border-blue-500 rounded-r"
+                          : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                      }`}
+                    >
+                      <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-blue-450" : "text-slate-500"}`} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
               </nav>
             </div>
           )}

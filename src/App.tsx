@@ -417,6 +417,11 @@ function DashboardContainer() {
 
   // Custom router
   const renderActiveView = () => {
+    // SuperAdmin is a platform operator — redirect all school routes to SaaS view
+    if (currentUser?.role === "superadmin" && currentTab !== "saas") {
+      return <SaaSManagement />;
+    }
+
     switch (currentTab) {
       case "saas":
         return <SaaSManagement />;

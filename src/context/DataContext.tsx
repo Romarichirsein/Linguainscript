@@ -1051,6 +1051,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addToWaitlistIfFull: boolean = false
   ) => {
     if (!currentUser) return { success: false, message: "Non authentifié" };
+    if (currentUser.role === UserRole.SUPERADMIN) {
+      return { success: false, message: "Le Super Administrateur ne gère pas les élèves. Cette action est réservée aux directrices et secrétaires des écoles." };
+    }
 
     // Check school's subscription plan rules
     const isBasique = currentSchool?.subType === "basique";
