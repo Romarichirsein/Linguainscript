@@ -21,7 +21,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   focusMode,
   setFocusMode
 }) => {
-  const { currentUser, availableUsers, switchUser, students, classes, waitlist, resetDatabase } = useData();
+  const { 
+    currentUser, 
+    availableUsers, 
+    switchUser, 
+    students, 
+    classes, 
+    waitlist, 
+    resetDatabase,
+    systemNotifications,
+    updateSystemNotification,
+    approveSchoolRenewal
+  } = useData();
   const { darkMode, toggleDarkMode } = useTheme();
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
 
@@ -65,7 +76,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   // 3. Students with outstanding unpaid balances
   const debtStudents = students.filter(s => s.balance > 0 && s.status === "actif");
 
-  const totalAlerts = expiringStudents.length + waitlistClasses.length + debtStudents.length;
+  // 4. System notifications / warnings for school users
+  const schoolSystemWarnings = (systemNotifications || []).filter(
+    n => n.type === "subscription_warning" && n.schoolId === currentUser?.schoolId && !n.read
+  );
+
+  // 5. Renewal requests for SuperAdmin
+  const pendingRenewalRequests = (systemNotifications || []).filter(
+    n => n.type === "renewal_request" && n.status === "pending"
+  );
+
+  const totalAlerts = currentUser?.role === UserRole.SUPERADMIN
+    ? pendingRenewalRequests.length
+    : expiringStudents.length + waitlistClasses.length + debtStudents.length + schoolSystemWarnings.length;
 
   const handleAlertClick = (tabId: string, studentId?: string) => {
     setCurrentTab(tabId);
@@ -269,7 +292,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Notification Bell Dropdown */}
-        {currentUser?.role !== UserRole.SUPERADMIN && (
+        {currentUser && (
           <div className="relative">
             <button
               onClick={() => setShowAlertsDropdown(!showAlertsDropdown)}
@@ -277,73 +300,166 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Bell className="h-4.5 w-4.5 text-slate-600 dark:text-slate-300" />
               {totalAlerts > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse"></span>
               )}
             </button>
 
             {showAlertsDropdown && (
               <div className="absolute right-0 mt-2.5 w-80 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 shadow-xl z-50">
                 <div className="flex items-center justify-between px-4 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Alertes prioritaires ({totalAlerts})</span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    {currentUser.role === UserRole.SUPERADMIN ? "Demandes SaaS" : "Alertes prioritaires"} ({totalAlerts})
+                  </span>
                   {totalAlerts > 0 && (
                     <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
                   )}
                 </div>
-                <div className="max-h-72 overflow-y-auto">
+                <div className="max-h-80 overflow-y-auto">
                   {totalAlerts === 0 ? (
                     <p className="px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500">Aucune alerte en attente</p>
                   ) : (
                     <>
-                      {/* Expirations alert cells */}
-                      {expiringStudents.map(student => (
-                        <button
-                          key={student.id}
-                          onClick={() => handleAlertClick("students", student.id)}
-                          className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
-                        >
-                          <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Expiration imminente</p>
-                            <p className="text-[11px] text-slate-550 dark:text-slate-400">
-                              L'inscription de <b>{student.firstName} {student.lastName}</b> expire bientôt.
-                            </p>
+                      {/* SuperAdmin Notifications (Renewal requests) */}
+                      {currentUser.role === UserRole.SUPERADMIN && (
+                        pendingRenewalRequests.map(notif => (
+                          <div
+                            key={notif.id}
+                            className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-2"
+                          >
+                            <div className="flex gap-2.5 items-start">
+                              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{notif.title}</p>
+                                <p className="text-[11px] text-slate-600 dark:text-slate-350 leading-snug mt-0.5">
+                                  {notif.message}
+                                </p>
+                                <span className="inline-block text-[9px] text-slate-400 mt-1 font-mono">
+                                  {new Date(notif.createdAt).toLocaleDateString("fr-FR")} à {new Date(notif.createdAt).toLocaleTimeString("fr-FR", { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 justify-end mt-1 border-t border-slate-100 dark:border-slate-800 pt-1.5">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await updateSystemNotification(notif.id, { status: "rejected", read: true });
+                                    alert("Demande rejetée");
+                                  } catch (e) {
+                                    console.error(e);
+                                  }
+                                }}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 text-[10px] font-bold rounded text-slate-600 dark:text-slate-355 transition-colors cursor-pointer animate-none"
+                              >
+                                Rejeter
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm(`Confirmer l'approbation du renouvellement pour ${notif.schoolName} ?`)) {
+                                    try {
+                                      await approveSchoolRenewal(notif.id);
+                                      alert("Abonnement prolongé avec succès !");
+                                    } catch (e) {
+                                      console.error(e);
+                                    }
+                                  }
+                                }}
+                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-[10px] font-bold rounded text-white shadow shadow-blue-150 transition-colors cursor-pointer"
+                              >
+                                Approuver ✅
+                              </button>
+                            </div>
                           </div>
-                        </button>
-                      ))}
+                        ))
+                      )}
 
-                      {/* Unpaid balances alerts */}
-                      {debtStudents.map(student => (
-                        <button
-                          key={student.id}
-                          onClick={() => handleAlertClick("students", student.id)}
-                          className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
-                        >
-                          <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Solde restant à recouvrer</p>
-                            <p className="text-[11px] text-slate-550 dark:text-slate-400">
-                              <b>{student.firstName} {student.lastName}</b> doit encore <b>{student.balance.toLocaleString()} FCFA</b>.
-                            </p>
-                          </div>
-                        </button>
-                      ))}
+                      {/* Regular School User Alerts */}
+                      {currentUser.role !== UserRole.SUPERADMIN && (
+                        <>
+                          {/* Expirations alert cells (J-7 subscription warnings) */}
+                          {schoolSystemWarnings.map(notif => (
+                            <div
+                              key={notif.id}
+                              className="px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start bg-red-50/20 dark:bg-red-950/10"
+                            >
+                              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5 animate-pulse" />
+                              <div className="flex-1">
+                                <p className="text-xs font-bold text-red-600 dark:text-red-400">Renouvellement requis</p>
+                                <p className="text-[11px] text-slate-650 dark:text-slate-350 leading-snug mt-0.5">
+                                  {notif.message}
+                                </p>
+                                <div className="flex justify-between items-center mt-1.5">
+                                  <span className="text-[9px] text-slate-400 font-mono">
+                                    {new Date(notif.createdAt).toLocaleDateString("fr-FR")}
+                                  </span>
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await updateSystemNotification(notif.id, { read: true });
+                                      } catch (e) {
+                                        console.error(e);
+                                      }
+                                    }}
+                                    className="text-[9px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    Ignorer
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
 
-                      {/* Waitlist warnings */}
-                      {waitlistClasses.map(cls => (
-                        <button
-                          key={cls.id}
-                          onClick={() => handleAlertClick("waitlist")}
-                          className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
-                        >
-                          <UserCheck className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Classe complète & File</p>
-                            <p className="text-[11px] text-slate-550 dark:text-slate-400">
-                              La classe <b>{cls.language} {cls.level}</b> est pleine avec des élèves en attente.
-                            </p>
-                          </div>
-                        </button>
-                      ))}
+                          {/* Student Expirations alert cells */}
+                          {expiringStudents.map(student => (
+                            <button
+                              key={student.id}
+                              onClick={() => handleAlertClick("students", student.id)}
+                              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
+                            >
+                              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Expiration élève</p>
+                                <p className="text-[11px] text-slate-550 dark:text-slate-400">
+                                  L'inscription de <b>{student.firstName} {student.lastName}</b> expire bientôt.
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+
+                          {/* Unpaid balances alerts */}
+                          {debtStudents.map(student => (
+                            <button
+                              key={student.id}
+                              onClick={() => handleAlertClick("students", student.id)}
+                              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
+                            >
+                              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Solde restant à recouvrer</p>
+                                <p className="text-[11px] text-slate-550 dark:text-slate-400">
+                                  <b>{student.firstName} {student.lastName}</b> doit encore <b>{student.balance.toLocaleString()} FCFA</b>.
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+
+                          {/* Waitlist warnings */}
+                          {waitlistClasses.map(cls => (
+                            <button
+                              key={cls.id}
+                              onClick={() => handleAlertClick("waitlist")}
+                              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
+                            >
+                              <UserCheck className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Classe complète & File</p>
+                                <p className="text-[11px] text-slate-550 dark:text-slate-400">
+                                  La classe <b>{cls.language} {cls.level}</b> est pleine avec des élèves en attente.
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+                        </>
+                      )}
                     </>
                   )}
                 </div>

@@ -50,8 +50,61 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelectedStudentId }) => {
-  const { currentUser, campuses, teachers, classes, students, payments, auditLogs, waitlist, addStudent, schoolConfig, updateStudent } = useData();
+  const { 
+    currentUser, 
+    campuses, 
+    teachers, 
+    classes, 
+    students, 
+    payments, 
+    auditLogs, 
+    waitlist, 
+    addStudent, 
+    schoolConfig, 
+    updateStudent,
+    currentSchool,
+    requestSchoolRenewal,
+    systemNotifications
+  } = useData();
   const { t, isEn } = useTranslation();
+
+  // Renewal request modal states
+  const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
+  const [requestedPack, setRequestedPack] = useState<"basique" | "premium" | "integral">("basique");
+  const [requestedMonths, setRequestedMonths] = useState(12);
+  const [renewalSubmitted, setRenewalSubmitted] = useState(false);
+
+  // Subscription warning calculations
+  const { showWarningBanner, daysRemaining, schoolExpired } = useMemo(() => {
+    if (!currentSchool || currentUser?.role === UserRole.SUPERADMIN) {
+      return { showWarningBanner: false, daysRemaining: 999, schoolExpired: false };
+    }
+    const expiryDate = new Date(currentSchool.subExpiresAt);
+    const now = new Date();
+    const diffTime = expiryDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return {
+      showWarningBanner: diffDays <= 7,
+      daysRemaining: diffDays,
+      schoolExpired: diffDays < 0
+    };
+  }, [currentSchool, currentUser]);
+
+  const handleRenewalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await requestSchoolRenewal(requestedPack, requestedMonths);
+      setRenewalSubmitted(true);
+      setTimeout(() => {
+        setIsRenewalModalOpen(false);
+        setRenewalSubmitted(false);
+      }, 3000);
+    } catch (err) {
+      console.error(err);
+      alert("Échec de l'envoi de la demande de renouvellement");
+    }
+  };
 
   // Temporal Filter for D3 Charts/Dashboard
   const [timePeriod, setTimePeriod] = useState<"all" | "week" | "month" | "quarter" | "year" | "custom">("all");
@@ -578,6 +631,117 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
           </div>
         </div>
       </div>
+
+      {/* SaaS Subscription Expiration Warning Banner */}
+      {showWarningBanner && (
+        <div className={`p-4 rounded-2xl border ${schoolExpired ? "bg-red-50 border-red-200 text-red-900 dark:bg-red-950/20 dark:border-red-900/40" : "bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/20 dark:border-amber-900/40"} shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-pulse`}>
+          <div className="flex items-center gap-3">
+            <span className="text-xl">⚠️</span>
+            <div>
+              <h4 className="font-bold text-xs">
+                {schoolExpired 
+                  ? "Abonnement Expiré !" 
+                  : `Abonnement expirant bientôt (J-${daysRemaining})`}
+              </h4>
+              <p className="text-[11px] opacity-90 mt-0.5">
+                {schoolExpired 
+                  ? `L'abonnement de votre école a expiré le ${new Date(currentSchool?.subExpiresAt || "").toLocaleDateString("fr-FR")}. Les fonctionnalités d'écriture et de création sont restreintes.`
+                  : `Votre abonnement arrive à échéance le ${new Date(currentSchool?.subExpiresAt || "").toLocaleDateString("fr-FR")}. Pensez à renouveler votre licence.`}
+              </p>
+            </div>
+          </div>
+          {currentUser?.role === UserRole.DIRECTRICE && (
+            <button
+              onClick={() => {
+                setRequestedPack(currentSchool?.subType || "basique");
+                setIsRenewalModalOpen(true);
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer ${schoolExpired ? "bg-red-600 hover:bg-red-700 shadow-red-200" : "bg-amber-600 hover:bg-amber-700 shadow-amber-200"}`}
+            >
+              Demander un Renouvellement
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Renewal Request Modal */}
+      {isRenewalModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-105 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-slate-800">Demander un Renouvellement</h3>
+              <button 
+                onClick={() => setIsRenewalModalOpen(false)} 
+                className="rounded p-1 text-slate-450 hover:bg-slate-100 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {renewalSubmitted ? (
+              <div className="py-6 text-center space-y-2 text-xs">
+                <span className="inline-block text-3xl animate-bounce">✅</span>
+                <p className="font-bold text-emerald-600">Demande envoyée avec succès !</p>
+                <p className="text-slate-500 font-medium">Le Super Administrateur a reçu votre demande en temps réel.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleRenewalSubmit} className="space-y-4 text-xs text-slate-700">
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-150 mb-2">
+                  <p className="font-bold text-slate-805">École : {currentSchool?.name}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Forfait Actuel : <span className="font-semibold uppercase text-blue-600">{currentSchool?.subType}</span>
+                  </p>
+                </div>
+
+                {/* Pack select */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-650">Forfait souhaité *</label>
+                  <select
+                    value={requestedPack}
+                    onChange={(e) => setRequestedPack(e.target.value as any)}
+                    className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850 outline-none"
+                  >
+                    <option value="basique">Basique (5 000 FCFA/mois)</option>
+                    <option value="premium">Premium (10 000 FCFA/mois)</option>
+                    <option value="integral">Intégral (15 000 FCFA/mois)</option>
+                  </select>
+                </div>
+
+                {/* Months duration */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-650">Durée du renouvellement *</label>
+                  <select
+                    value={requestedMonths}
+                    onChange={(e) => setRequestedMonths(parseInt(e.target.value))}
+                    className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850 outline-none"
+                  >
+                    <option value={3}>3 Mois</option>
+                    <option value={6}>6 Mois</option>
+                    <option value={12}>12 Mois (Recommandé)</option>
+                  </select>
+                </div>
+
+                {/* Buttons */}
+                <div className="flex items-center gap-2 pt-3 border-t border-slate-50">
+                  <button
+                    type="button"
+                    onClick={() => setIsRenewalModalOpen(false)}
+                    className="flex-1 rounded-xl border border-slate-200 py-2.5 font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer"
+                  >
+                    Envoyer la Demande
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Dynamic Global Temporal Filters & Date Picker */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">

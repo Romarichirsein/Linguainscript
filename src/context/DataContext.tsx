@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
-import { Campus, Teacher, Class, Student, Payment, AuditLog, WaitlistEntry, UserProfile, UserRole, SchoolConfig, Reminder, School, PlanConfig } from "../types";
+import { Campus, Teacher, Class, Student, Payment, AuditLog, WaitlistEntry, UserProfile, UserRole, SchoolConfig, Reminder, School, PlanConfig, SystemNotification } from "../types";
 import {
   mockCampuses,
   mockTeachers,
@@ -118,6 +118,13 @@ interface DataContextType {
   addReminder: (reminderData: Omit<Reminder, "id" | "createdAt" >) => Promise<void>;
   runAutomaticSMSSweep: () => Promise<{ triggeredCount: number; logs: string[] }>;
   checkRoleAccess: (allowedRoles: UserRole[], actionDescription: string) => void;
+  
+  // System/SaaS notifications
+  systemNotifications: SystemNotification[];
+  createSystemNotification: (notif: Omit<SystemNotification, "id" | "createdAt" | "read">) => Promise<void>;
+  updateSystemNotification: (id: string, updates: Partial<SystemNotification>) => Promise<void>;
+  requestSchoolRenewal: (pack: "basique" | "premium" | "integral", months: number) => Promise<void>;
+  approveSchoolRenewal: (notificationId: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -1966,6 +1973,141 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { triggeredCount, logs };
   };
 
+  // --- Notifications Système & Renouvellements ---
+  const [systemNotifications, setSystemNotifications] = useState<SystemNotification[]>([]);
+
+  // écoute en temps réel des notifications système
+  useEffect(() => {
+    if (!firebaseUser) {
+      setSystemNotifications([]);
+      return;
+    }
+
+    const unsubSystemNotifications = onSnapshot(collection(db, "system_notifications"), (snapshot) => {
+      const items = snapshot.docs.map(d => mapDoc<SystemNotification>(d));
+      
+      // Trier par date décroissante
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      setSystemNotifications(items);
+    }, (err) => {
+      console.warn("Error loading system notifications: ", err);
+    });
+
+    return () => unsubSystemNotifications();
+  }, [firebaseUser]);
+
+  // Avertissement d'expiration J-7 automatique
+  useEffect(() => {
+    if (!currentUser || currentUser.role === UserRole.SUPERADMIN || !currentSchool) return;
+
+    const checkSubscriptionExpiry = async () => {
+      const expiryDate = new Date(currentSchool.subExpiresAt);
+      const now = new Date();
+      const diffTime = expiryDate.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      // Si l'abonnement expire dans 7 jours ou moins
+      if (diffDays >= -30 && diffDays <= 7) {
+        const todayStr = now.toDateString();
+        const alreadyNotifiedToday = systemNotifications.some(
+          n => n.type === "subscription_warning" &&
+          n.schoolId === currentSchool.id &&
+          new Date(n.createdAt).toDateString() === todayStr
+        );
+
+        if (!alreadyNotifiedToday) {
+          console.log(`Auto-triggering subscription warning reminder for ${currentSchool.name} (expiring in ${diffDays} days).`);
+          await createSystemNotification({
+            type: "subscription_warning",
+            title: "Alerte d'échéance d'abonnement",
+            message: diffDays < 0 
+              ? `Votre abonnement a expiré le ${expiryDate.toLocaleDateString("fr-FR")}. Veuillez demander un renouvellement au Super Administrateur.`
+              : `Votre abonnement expire le ${expiryDate.toLocaleDateString("fr-FR")} (dans ${diffDays} jour(s)). Veuillez demander un renouvellement au Super Administrateur.`,
+            schoolId: currentSchool.id,
+            schoolName: currentSchool.name
+          });
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      checkSubscriptionExpiry();
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [currentUser, currentSchool, systemNotifications.length]);
+
+  const createSystemNotification = async (notifData: Omit<SystemNotification, "id" | "createdAt" | "read">) => {
+    const id = `notif_${Date.now()}`;
+    const newNotif: SystemNotification = {
+      ...notifData,
+      id,
+      createdAt: new Date().toISOString(),
+      read: false
+    };
+
+    if (isLocalSession.current) {
+      setSystemNotifications(prev => [newNotif, ...prev]);
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, "system_notifications", id), newNotif);
+    } catch (err) {
+      console.error("Failed to create system notification: ", err);
+      handleFirestoreError(err, OperationType.WRITE, `system_notifications/${id}`);
+    }
+  };
+
+  const updateSystemNotification = async (id: string, updates: Partial<SystemNotification>) => {
+    if (isLocalSession.current) {
+      setSystemNotifications(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "system_notifications", id), updates);
+    } catch (err) {
+      console.error("Failed to update system notification: ", err);
+      handleFirestoreError(err, OperationType.WRITE, `system_notifications/${id}`);
+    }
+  };
+
+  const requestSchoolRenewal = async (pack: "basique" | "premium" | "integral", months: number) => {
+    checkRoleAccess([UserRole.DIRECTRICE], "Demande de renouvellement d'abonnement");
+    if (!currentSchool) return;
+
+    await createSystemNotification({
+      type: "renewal_request",
+      title: `Demande de renouvellement - ${currentSchool.name}`,
+      message: `La directrice demande un renouvellement vers le forfait ${pack.toUpperCase()} pour une durée de ${months} mois.`,
+      schoolId: currentSchool.id,
+      schoolName: currentSchool.name,
+      status: "pending",
+      packRequested: pack,
+      monthsRequested: months
+    });
+  };
+
+  const approveSchoolRenewal = async (notificationId: string) => {
+    checkRoleAccess([UserRole.SUPERADMIN], "Approbation de renouvellement d'abonnement");
+    
+    const notif = systemNotifications.find(n => n.id === notificationId);
+    if (!notif || notif.type !== "renewal_request" || !notif.schoolId) return;
+
+    const pack = notif.packRequested || "basique";
+    const months = notif.monthsRequested || 1;
+    
+    await renewSchoolSubscription(notif.schoolId, pack, months);
+    
+    await updateSystemNotification(notificationId, {
+      status: "approved",
+      read: true,
+      message: `${notif.message} (Approuvé par le SuperAdmin le ${new Date().toLocaleDateString("fr-FR")})`
+    });
+  };
+
   return (
     <DataContext.Provider
       value={{
@@ -2016,6 +2158,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addReminder,
         runAutomaticSMSSweep,
         checkRoleAccess,
+        
+        systemNotifications,
+        createSystemNotification,
+        updateSystemNotification,
+        requestSchoolRenewal,
+        approveSchoolRenewal,
         
         // Raw collections
         rawStudents,

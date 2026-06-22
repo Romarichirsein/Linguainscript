@@ -185,3 +185,18 @@ export interface PlanConfig {
   canManageClasses: boolean;
 }
 
+export interface SystemNotification {
+  id: string;
+  type: "renewal_request" | "subscription_warning" | "general";
+  title: string;
+  message: string;
+  schoolId?: string | null;
+  schoolName?: string;
+  createdAt: string;
+  read: boolean;
+  status?: "pending" | "approved" | "rejected";
+  packRequested?: "basique" | "premium" | "integral";
+  monthsRequested?: number;
+}
+
+

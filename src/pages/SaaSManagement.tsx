@@ -21,7 +21,8 @@ import {
   Check, 
   Activity,
   Download,
-  ToggleLeft
+  ToggleLeft,
+  Bell
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 
@@ -43,7 +44,10 @@ export function SaaSManagement() {
     rawWaitlist,
     rawReminders,
     plansConfig,
-    updatePlanConfig
+    updatePlanConfig,
+    systemNotifications,
+    updateSystemNotification,
+    approveSchoolRenewal
   } = useData();
 
   const handleDownloadBackup = () => {
@@ -78,7 +82,11 @@ export function SaaSManagement() {
   };
 
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<"dashboard" | "actions" | "help" | "plans">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "actions" | "help" | "plans" | "notifications">("dashboard");
+
+  const pendingRequestsCount = (systemNotifications || []).filter(
+    n => n.type === "renewal_request" && n.status === "pending"
+  ).length;
 
   // Create school fields
   const [newSchoolName, setNewSchoolName] = useState("");
@@ -362,6 +370,22 @@ export function SaaSManagement() {
           >
             <ToggleLeft className="h-3.5 w-3.5 inline mr-1.5" />
             Plans & Fonctionnalités
+          </button>
+          <button
+            onClick={() => setActiveTab("notifications")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "notifications" 
+                ? "bg-white text-slate-800 shadow-xs" 
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Bell className="h-3.5 w-3.5 inline" />
+            <span>Demandes & Alertes</span>
+            {pendingRequestsCount > 0 && (
+              <span className="bg-red-500 text-white rounded-full px-1.5 py-0.5 text-[9px] font-bold animate-pulse">
+                {pendingRequestsCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -1172,6 +1196,160 @@ export function SaaSManagement() {
             <div>
               <strong className="text-slate-800 font-sans block mb-1">Impact en temps réel</strong>
               Toute modification des prix, de la limite d'élèves ou des autorisations de fonctionnalités s'applique immédiatement à l'ensemble des écoles affiliées à ce plan. Assurez-vous de communiquer toute modification de tarif ou réduction de fonctionnalités à l'avance.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 5: NOTIFICATIONS & DEMANDES */}
+      {activeTab === "notifications" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header Card */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center space-x-3 text-indigo-650 mb-1">
+              <Bell className="h-6 w-6 text-indigo-600 animate-pulse" />
+              <h2 className="font-sans text-xl font-bold text-slate-800">
+                Centre de Contrôle des Demandes & Notifications
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+              Supervisez les demandes de renouvellement d'abonnement envoyées par les directrices d'établissement en temps réel. Suivez également les alertes automatiques générées pour les licences arrivant à expiration.
+            </p>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Left Col: Pending Requests */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center justify-between">
+                  <span>Demandes de Renouvellement en Attente</span>
+                  {pendingRequestsCount > 0 && (
+                    <span className="bg-red-100 text-red-750 px-2 py-0.5 text-[10px] font-extrabold rounded-full animate-pulse">
+                      {pendingRequestsCount} active(s)
+                    </span>
+                  )}
+                </h3>
+
+                <div className="divide-y divide-slate-100">
+                  {systemNotifications.filter(n => n.type === "renewal_request" && n.status === "pending").length === 0 ? (
+                    <div className="py-12 text-center text-xs text-slate-450 italic">
+                      Aucune demande de renouvellement en attente.
+                    </div>
+                  ) : (
+                    systemNotifications.filter(n => n.type === "renewal_request" && n.status === "pending").map(notif => (
+                      <div key={notif.id} className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-800">{notif.schoolName}</span>
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[9px] font-extrabold uppercase tracking-wide">
+                              Pack: {notif.packRequested}
+                            </span>
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-extrabold">
+                              {notif.monthsRequested} mois
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-550">{notif.message}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">
+                            Reçue le {new Date(notif.createdAt).toLocaleDateString("fr-FR")} à {new Date(notif.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+
+                        <div className="flex gap-2 self-end sm:self-center">
+                          <button
+                            onClick={async () => {
+                              if (window.confirm("Voulez-vous rejeter cette demande de renouvellement ?")) {
+                                try {
+                                  await updateSystemNotification(notif.id, { status: "rejected", read: true });
+                                  alert("Demande rejetée");
+                                } catch (e) {
+                                  console.error(e);
+                                }
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+                          >
+                            Rejeter
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (window.confirm(`Confirmer le renouvellement de ${notif.schoolName} pour le forfait ${notif.packRequested?.toUpperCase()} (${notif.monthsRequested} mois) ?`)) {
+                                try {
+                                  await approveSchoolRenewal(notif.id);
+                                  alert("Abonnement renouvelé avec succès !");
+                                } catch (e) {
+                                  console.error(e);
+                                }
+                              }
+                            }}
+                            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-xs font-bold rounded-xl text-white shadow shadow-blue-150 transition-colors cursor-pointer"
+                          >
+                            Approuver & Renouveler ✅
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Resolved / History */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-800 mb-4">Historique des Demandes Traitées</h3>
+                <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto pr-1">
+                  {systemNotifications.filter(n => n.type === "renewal_request" && n.status !== "pending").length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400 italic">
+                      Aucun historique de demande traité.
+                    </div>
+                  ) : (
+                    systemNotifications.filter(n => n.type === "renewal_request" && n.status !== "pending").slice(0, 10).map(notif => (
+                      <div key={notif.id} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between text-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-700">{notif.schoolName}</span>
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide ${
+                              notif.status === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                            }`}>
+                              {notif.status === "approved" ? "Approuvé" : "Rejeté"}
+                            </span>
+                          </div>
+                          <p className="text-slate-500 text-[11px] mt-0.5">{notif.message}</p>
+                          <span className="text-[9px] text-slate-400 font-mono block mt-0.5">
+                            Le {new Date(notif.createdAt).toLocaleDateString("fr-FR")}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Col: Expiry Warnings alerts */}
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-800 mb-4">Alertes d'Expiration J-7 en cours</h3>
+                <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                  {systemNotifications.filter(n => n.type === "subscription_warning").length === 0 ? (
+                    <p className="py-8 text-center text-xs text-slate-400 italic">Aucune alerte active pour le moment.</p>
+                  ) : (
+                    systemNotifications.filter(n => n.type === "subscription_warning").map(notif => (
+                      <div key={notif.id} className="p-3 bg-rose-50/30 rounded-xl border border-rose-100/50 space-y-1.5 text-xs">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="font-bold text-red-700">{notif.schoolName}</span>
+                          <span className="text-[9px] text-slate-400 font-mono shrink-0">
+                            {new Date(notif.createdAt).toLocaleDateString("fr-FR")}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-snug">{notif.message}</p>
+                        <div className="flex justify-between items-center pt-1 border-t border-slate-100/50">
+                          <span className="text-[9px] text-slate-450 font-medium">Alerte auto J-7</span>
+                          <span className={`inline-block w-2 h-2 rounded-full ${notif.read ? "bg-slate-300" : "bg-red-500 animate-pulse"}`} title={notif.read ? "Lu" : "Non lu"} />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
