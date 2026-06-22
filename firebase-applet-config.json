@@ -1,10 +1,8 @@
 {
-  "projectId": "silent-fabric-nlrqd",
-  "appId": "1:647225105551:web:3645f321f6c369dbb764fa",
-  "apiKey": "AIzaSyBLZvSZK_fNxmtWB9SjfXeWYnbubRmCAhE",
-  "authDomain": "silent-fabric-nlrqd.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-32572760-4214-4f83-a7c2-afddae407b47",
-  "storageBucket": "silent-fabric-nlrqd.firebasestorage.app",
-  "messagingSenderId": "647225105551",
-  "measurementId": ""
+  "apiKey": "AIzaSyD48_emBl_7rHFpGIfrYrD7CfwXKcJY4-A",
+  "authDomain": "gestion-ecoles-crm.firebaseapp.com",
+  "projectId": "gestion-ecoles-crm",
+  "storageBucket": "gestion-ecoles-crm.firebasestorage.app",
+  "messagingSenderId": "776802572579",
+  "appId": "1:776802572579:web:31c484c1f1c5a2ce3b5496"
 }

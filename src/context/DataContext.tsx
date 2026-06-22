@@ -301,8 +301,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 1. Connection test & Auth subscriber
   useEffect(() => {
     const testConnection = async () => {
+      // Skip connection test in local session mode
+      if (isLocalSession.current) return;
       try {
-        await getDocFromServer(doc(db, "test", "connection"));
+        // Race against a 5s timeout to prevent hanging with persistent cache
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Connection test timeout")), 5000));
+        await Promise.race([getDocFromServer(doc(db, "test", "connection")), timeout]);
       } catch (error) {
         if (error instanceof Error && error.message.includes("the client is offline")) {
           console.error("Please check your Firebase configuration.");
@@ -429,6 +433,50 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
+  // Default schools used for both Firestore seeding and local fallback
+  const getDefaultSchools = (): School[] => [
+    {
+      id: "school_demo",
+      name: "LinguaInscript Douala",
+      directriceEmail: "romarichirsein@gmail.com",
+      directriceName: "Romaric Hirsein",
+      subType: "integral",
+      subStatus: "active",
+      subExpiresAt: "2027-12-31T23:59:59.000Z",
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "school_basique",
+      name: "Centre Moyen de l'Adamaoua",
+      directriceEmail: "directrice.basique@gmail.com",
+      directriceName: "Josiane Bello",
+      subType: "basique",
+      subStatus: "active",
+      subExpiresAt: "2026-10-31T23:59:59.000Z",
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "school_premium",
+      name: "African English Academy",
+      directriceEmail: "directrice.premium@gmail.com",
+      directriceName: "Amina Moukoko",
+      subType: "premium",
+      subStatus: "active",
+      subExpiresAt: "2026-11-30T23:59:59.000Z",
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "school_integral",
+      name: "Polyglot Hub Yaoundé",
+      directriceEmail: "directrice.integral@gmail.com",
+      directriceName: "Thérèse Ngono",
+      subType: "integral",
+      subStatus: "active",
+      subExpiresAt: "2027-01-15T23:59:59.000Z",
+      createdAt: new Date().toISOString()
+    }
+  ];
+
   // Sync schools list
   useEffect(() => {
     if (!firebaseUser) {
@@ -437,61 +485,31 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    // LOCAL SESSION: seed schools & users from mock data directly into state
+    if (isLocalSession.current) {
+      console.log("[Local Session] Loading default schools and mock users into local state.");
+      setSchools(getDefaultSchools());
+      setAllUsers(mockUsers.map(u => ({ ...u, schoolId: u.schoolId || "school_demo" })));
+      return;
+    }
+
     const unsubSchools = onSnapshot(collection(db, "schools"), async (snapshot) => {
       const items = snapshot.docs.map(d => mapDoc<School>(d));
       setSchools(items);
 
       if (items.length === 0) {
-        const defaultSchools: School[] = [
-          {
-            id: "school_demo",
-            name: "LinguaInscript Douala",
-            directriceEmail: "romarichirsein@gmail.com",
-            directriceName: "Romaric Hirsein",
-            subType: "integral",
-            subStatus: "active",
-            subExpiresAt: "2027-12-31T23:59:59.000Z",
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: "school_basique",
-            name: "Centre Moyen de l'Adamaoua",
-            directriceEmail: "directrice.basique@gmail.com",
-            directriceName: "Josiane Bello",
-            subType: "basique",
-            subStatus: "active",
-            subExpiresAt: "2026-10-31T23:59:59.000Z",
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: "school_premium",
-            name: "African English Academy",
-            directriceEmail: "directrice.premium@gmail.com",
-            directriceName: "Amina Moukoko",
-            subType: "premium",
-            subStatus: "active",
-            subExpiresAt: "2026-11-30T23:59:59.000Z",
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: "school_integral",
-            name: "Polyglot Hub Yaoundé",
-            directriceEmail: "directrice.integral@gmail.com",
-            directriceName: "Thérèse Ngono",
-            subType: "integral",
-            subStatus: "active",
-            subExpiresAt: "2027-01-15T23:59:59.000Z",
-            createdAt: new Date().toISOString()
-          }
-        ];
         const batch = writeBatch(db);
-        defaultSchools.forEach(sch => {
+        getDefaultSchools().forEach(sch => {
           batch.set(doc(db, "schools", sch.id), sch);
         });
         await batch.commit();
       }
     }, (err) => {
       console.error("Error loading schools list:", err);
+      // Fallback: load default schools locally on permission error
+      if (err?.code === "permission-denied" || err?.message?.includes("permission")) {
+        setSchools(getDefaultSchools());
+      }
     });
 
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
@@ -506,6 +524,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [firebaseUser]);
 
+  // Helper: build a default SchoolConfig for a given school ID
+  const getDefaultSchoolConfig = (schoolId: string): SchoolConfig => ({
+    id: schoolId,
+    name: schoolId === "school_basique" ? "Centre Moyen de l'Adamaoua" : schoolId === "school_premium" ? "African English Academy" : schoolId === "school_integral" ? "Polyglot Hub Yaoundé" : "LinguaInscript Douala",
+    slogan: "L'excellence linguistique à portée de main",
+    logoUrl: "",
+    themeColor: schoolId === "school_basique" ? "emerald" : schoolId === "school_premium" ? "rose" : "blue",
+    interfaceLanguage: "fr",
+    certificateTitle: "ATTESTATION DE RÉUSSITE",
+    certificateBody: "Nous soussignés, {ecole_nom}, certifions par la présente que l'élève {nom_etudiant} a suivi avec succès tous ses cours de perfectionnement linguistique au sein de notre établissement.",
+    certificateSignatory: "La Direction Académique",
+    smsEnabled: false,
+    smsGateway: "default",
+    smsTemplate: "Rappel Lingua: Le solde de scolarité de {etudiant_nom} (tuteur: {parent_nom}) d'un montant de {montant} FCFA est attendu avant le {date_limite} pour éviter toute interruption. Merci.",
+    smsDaysBefore: 5
+  });
+
   // 2. Realtime sync with Firestore once authenticated
   useEffect(() => {
     if (!firebaseUser) {
@@ -518,6 +553,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRawWaitlist([]);
       setSchoolConfig(null);
       setRawReminders([]);
+      return;
+    }
+
+    // LOCAL SESSION: load all mock data directly into state, skip Firestore listeners
+    if (isLocalSession.current) {
+      console.log("[Local Session] Loading mock data into local state (Firestore bypassed).");
+      setRawCampuses(mockCampuses.map(c => ({ ...c, schoolId: "school_demo" } as any)));
+      setRawTeachers(mockTeachers.map(t => ({ ...t, schoolId: "school_demo" } as any)));
+      setRawClasses(mockClasses.map(c => ({ ...c, schoolId: "school_demo" } as any)));
+      setRawStudents(mockStudents.map(s => ({ ...s, schoolId: "school_demo" } as any)));
+      setRawPayments(mockPayments.map(p => ({ ...p, schoolId: "school_demo" } as any)));
+      setRawAuditLogs(mockAuditLogs.map(a => ({ ...a, schoolId: "school_demo" } as any)));
+      setRawWaitlist(mockWaitlist.map(w => ({ ...w, schoolId: "school_demo" } as any)));
+      setRawReminders([]);
+      setSchoolConfig(getDefaultSchoolConfig(activeSchoolId || "school_demo"));
       return;
     }
 
@@ -604,21 +654,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updatedBy: data.updatedBy
         });
       } else {
-        setSchoolConfig({
-          id: activeSchoolId || "school_demo",
-          name: activeSchoolId === "school_basique" ? "Centre Moyen de l'Adamaoua" : activeSchoolId === "school_premium" ? "African English Academy" : activeSchoolId === "school_integral" ? "Polyglot Hub Yaoundé" : "LinguaInscript Douala",
-          slogan: "L'excellence linguistique à portée de main",
-          logoUrl: "",
-          themeColor: activeSchoolId === "school_basique" ? "emerald" : activeSchoolId === "school_premium" ? "rose" : "blue",
-          interfaceLanguage: "fr",
-          certificateTitle: "ATTESTATION DE RÉUSSITE",
-          certificateBody: "Nous soussignés, {ecole_nom}, certifions par la présente que l'élève {nom_etudiant} a suivi avec succès tous ses cours de perfectionnement linguistique au sein de notre établissement.",
-          certificateSignatory: "La Direction Académique",
-          smsEnabled: false,
-          smsGateway: "default",
-          smsTemplate: "Rappel Lingua: Le solde de scolarité de {etudiant_nom} (tuteur: {parent_nom}) d'un montant de {montant} FCFA est attendu avant le {date_limite} pour éviter toute interruption. Merci.",
-          smsDaysBefore: 5
-        });
+        setSchoolConfig(getDefaultSchoolConfig(activeSchoolId || "school_demo"));
       }
     }, (err) => {
       console.warn("School configuration document error: ", err);
@@ -929,9 +965,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           password: "lingua123"
         };
       } else {
-        // Search for a matching user in Firestore
+        // Search for a matching user in Firestore (with timeout to prevent hanging)
         const q = query(collection(db, "users"), where("email", "==", cleanEmail));
-        const snap = await getDocs(q);
+        const queryTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Aucun compte trouvé (la base de données est inaccessible).")), 5000));
+        const snap = await Promise.race([getDocs(q), queryTimeout]);
         if (snap.empty) {
           throw new Error("Aucun compte trouvé avec cette adresse email.");
         }
@@ -996,10 +1033,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: firebaseUid
       };
 
-      try {
-        await setDoc(doc(db, "users", firebaseUid), updatedProfile);
-      } catch (dbErr) {
-        console.error("Failed writing demo session profile to Firestore:", dbErr);
+      // Only write to Firestore if we have a real Firebase session (not local/demo)
+      if (!isLocalSession.current) {
+        try {
+          const writeTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore write timeout")), 5000));
+          await Promise.race([setDoc(doc(db, "users", firebaseUid), updatedProfile), writeTimeout]);
+        } catch (dbErr) {
+          console.error("Failed writing demo session profile to Firestore:", dbErr);
+        }
       }
 
       setFirebaseUser(mockFUser);
@@ -1037,15 +1078,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       password: "lingua123"
     };
 
-    try {
-      await setDoc(doc(db, "users", mockUid), profile);
-    } catch (err) {
-      console.error("Failed to write mock account profile:", err);
-    } finally {
-      setFirebaseUser(mockFUser);
-      setCurrentUser(profile);
-      setLoading(false);
-    }
+    // Skip Firestore write in local session mode (would hang with persistent cache)
+    setFirebaseUser(mockFUser);
+    setCurrentUser(profile);
+    setLoading(false);
   };
 
   const logout = async () => {
