@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from "react";
 import { Campus, Teacher, Class, Student, Payment, AuditLog, WaitlistEntry, UserProfile, UserRole, SchoolConfig, Reminder, School, PlanConfig, SystemNotification } from "../types";
 import {
   mockCampuses,
@@ -125,6 +125,7 @@ interface DataContextType {
   updateSystemNotification: (id: string, updates: Partial<SystemNotification>) => Promise<void>;
   requestSchoolRenewal: (pack: "basique" | "premium" | "integral", months: number) => Promise<void>;
   approveSchoolRenewal: (notificationId: string) => Promise<void>;
+  uniqueLanguages: string[];
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -298,47 +299,56 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const currentSchool = schools.find(s => s.id === activeSchoolId) || null;
   const currentPlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
 
+  const uniqueLanguages = useMemo(() => {
+    const defaultLangs = ["Allemand", "Anglais", "Chinois", "Espagnol", "Français", "Italien", "Portugais", "Russe"];
+    const customLangs = schoolConfig?.customLanguages || [];
+    return Array.from(new Set([...defaultLangs, ...customLangs, ...classes.map(c => c.language)])).sort();
+  }, [schoolConfig?.customLanguages, classes]);
+
   // 1. Connection test & Auth subscriber
   useEffect(() => {
     const testConnection = async () => {
       // Skip connection test in local session mode
       if (isLocalSession.current) return;
       try {
-        // Race against a 5s timeout to prevent hanging with persistent cache
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Connection test timeout")), 5000));
+        // Race against a 4s timeout to prevent hanging with persistent cache
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Connection test timeout")), 4000));
         await Promise.race([getDocFromServer(doc(db, "test", "connection")), timeout]);
       } catch (error) {
-        if (error instanceof Error && error.message.includes("the client is offline")) {
-          console.error("Please check your Firebase configuration.");
-        }
+        console.warn("Firestore connection check failed. Falling back to local/demo session mode.", error);
+        isLocalSession.current = true;
+        localStorage.setItem("lingua_isLocalSession", "true");
       }
     };
     testConnection();
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      // If we're in a local/demo session and Firebase fires null, don't override
-      if (!user && isLocalSession.current) {
+      // If we're in a local/demo session, skip database queries and keep the loaded local profile
+      if (isLocalSession.current) {
+        setFirebaseUser(user);
         setLoading(false);
         return;
       }
+
       setFirebaseUser(user);
       if (user) {
         const userRef = doc(db, "users", user.uid);
         try {
-          const snapshot = await getDoc(userRef);
+          const docTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Firestore operation timeout")), 4000));
+          const snapshot = await Promise.race([getDoc(userRef), docTimeout]);
           const isSuperAdminEmail = user.email === "romarichirsein@gmail.com";
 
           if (snapshot.exists()) {
             const data = snapshot.data() as UserProfile;
             
             // Re-verify if directrice email matches standard schools list in case superadmin moved credentials
-            const schoolsSnap = await getDocs(collection(db, "schools"));
+            const schoolsSnap = await Promise.race([getDocs(collection(db, "schools")), docTimeout]);
             const schoolsList = schoolsSnap.docs.map(doc => doc.data() as School);
             const matchingSchool = schoolsList.find(s => s.directriceEmail?.toLowerCase() === user.email?.toLowerCase());
 
             if (isSuperAdminEmail && data.role !== UserRole.SUPERADMIN) {
               const updatedProfile = { ...data, role: UserRole.SUPERADMIN, schoolId: null };
-              await setDoc(userRef, updatedProfile);
+              await Promise.race([setDoc(userRef, updatedProfile), docTimeout]).catch(err => console.warn("Failed syncing role to Firestore: ", err));
               setCurrentUser(updatedProfile);
             } else if (matchingSchool && (data.role !== UserRole.DIRECTRICE || data.schoolId !== matchingSchool.id)) {
               const updatedProfile: UserProfile = { 
@@ -347,7 +357,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 schoolId: matchingSchool.id,
                 campusId: null
               };
-              await setDoc(userRef, updatedProfile);
+              await Promise.race([setDoc(userRef, updatedProfile), docTimeout]).catch(err => console.warn("Failed syncing role to Firestore: ", err));
               setCurrentUser(updatedProfile);
             } else {
               setCurrentUser(data);
@@ -355,7 +365,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else {
             // Check if there is an existing manual placeholder profile created by superadmin with this email
             const qUsers = query(collection(db, "users"), where("email", "==", user.email || ""));
-            const usersSnap = await getDocs(qUsers);
+            const usersSnap = await Promise.race([getDocs(qUsers), docTimeout]);
             const usersList = usersSnap.docs.map(d => d.data() as UserProfile);
             const matchingProfile = usersList.find(u => u.email?.toLowerCase() === user.email?.toLowerCase() && u.id !== user.uid);
 
@@ -366,17 +376,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 id: user.uid,
                 name: user.displayName || matchingProfile.name
               };
-              await setDoc(userRef, newProfile);
+              await Promise.race([setDoc(userRef, newProfile), docTimeout]).catch(err => console.warn("Failed writing user profile: ", err));
               
               // Remove the manual placeholder profile doc
               if (matchingProfile.id !== user.uid) {
-                await deleteDoc(doc(db, "users", matchingProfile.id));
+                await Promise.race([deleteDoc(doc(db, "users", matchingProfile.id)), docTimeout]).catch(err => console.warn("Failed deleting placeholder: ", err));
               }
               
               setCurrentUser(newProfile);
             } else {
               // Else check if they are flagged as directrice on any school
-              const schoolsSnap = await getDocs(collection(db, "schools"));
+              const schoolsSnap = await Promise.race([getDocs(collection(db, "schools")), docTimeout]);
               const schoolsList = schoolsSnap.docs.map(doc => doc.data() as School);
               const matchingSchool = schoolsList.find(s => s.directriceEmail?.toLowerCase() === user.email?.toLowerCase());
 
@@ -389,7 +399,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   campusId: null,
                   schoolId: matchingSchool.id
                 };
-                await setDoc(userRef, newProfile);
+                await Promise.race([setDoc(userRef, newProfile), docTimeout]).catch(err => console.warn("Failed writing profile: ", err));
                 setCurrentUser(newProfile);
               } else {
                 // Default fallback: SECRETAIRE
@@ -401,13 +411,59 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   campusId: isSuperAdminEmail ? null : "campus_01",
                   schoolId: isSuperAdminEmail ? null : "school_demo"
                 };
-                await setDoc(userRef, newProfile);
+                await Promise.race([setDoc(userRef, newProfile), docTimeout]).catch(err => console.warn("Failed writing fallback profile: ", err));
                 setCurrentUser(newProfile);
               }
             }
           }
         } catch (err) {
-          console.error("Error subscribing to user profile:", err);
+          console.error("Error subscribing to user profile or Firestore offline:", err);
+          
+          // Switch to local mode since Firestore operations timed out or errored
+          isLocalSession.current = true;
+          localStorage.setItem("lingua_isLocalSession", "true");
+
+          // Determine profile based on email address
+          const cleanEmail = user.email?.trim().toLowerCase() || "";
+          let fallbackProfile: UserProfile;
+          if (cleanEmail === "romarichirsein@gmail.com") {
+            fallbackProfile = {
+              id: "superadmin_romaric",
+              name: "Romaric Hirsein (Super Admin)",
+              email: cleanEmail,
+              role: UserRole.SUPERADMIN,
+              campusId: null,
+              schoolId: null
+            };
+          } else if (cleanEmail === "directrice.integral@gmail.com") {
+            fallbackProfile = {
+              id: "directrice_integral",
+              name: "Thérèse Ngono (Directrice)",
+              email: cleanEmail,
+              role: UserRole.DIRECTRICE,
+              campusId: null,
+              schoolId: "school_integral"
+            };
+          } else if (cleanEmail === "secretaire.demo@gmail.com") {
+            fallbackProfile = {
+              id: "secretaire_demo",
+              name: "Sarah Kiman (Secrétaire)",
+              email: cleanEmail,
+              role: UserRole.SECRETAIRE,
+              campusId: "campus_01",
+              schoolId: "school_demo"
+            };
+          } else {
+            fallbackProfile = {
+              id: user.uid,
+              name: user.displayName || "Utilisateur Local",
+              email: cleanEmail,
+              role: UserRole.SECRETAIRE,
+              campusId: "campus_01",
+              schoolId: "school_demo"
+            };
+          }
+          setCurrentUser(fallbackProfile);
         }
       } else {
         setCurrentUser(null);
@@ -538,7 +594,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     smsEnabled: false,
     smsGateway: "default",
     smsTemplate: "Rappel Lingua: Le solde de scolarité de {etudiant_nom} (tuteur: {parent_nom}) d'un montant de {montant} FCFA est attendu avant le {date_limite} pour éviter toute interruption. Merci.",
-    smsDaysBefore: 5
+    smsDaysBefore: 5,
+    customLanguages: []
   });
 
   // 2. Realtime sync with Firestore once authenticated
@@ -559,15 +616,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // LOCAL SESSION: load all mock data directly into state, skip Firestore listeners
     if (isLocalSession.current) {
       console.log("[Local Session] Loading mock data into local state (Firestore bypassed).");
-      setRawCampuses(mockCampuses.map(c => ({ ...c, schoolId: "school_demo" } as any)));
-      setRawTeachers(mockTeachers.map(t => ({ ...t, schoolId: "school_demo" } as any)));
-      setRawClasses(mockClasses.map(c => ({ ...c, schoolId: "school_demo" } as any)));
-      setRawStudents(mockStudents.map(s => ({ ...s, schoolId: "school_demo" } as any)));
-      setRawPayments(mockPayments.map(p => ({ ...p, schoolId: "school_demo" } as any)));
-      setRawAuditLogs(mockAuditLogs.map(a => ({ ...a, schoolId: "school_demo" } as any)));
-      setRawWaitlist(mockWaitlist.map(w => ({ ...w, schoolId: "school_demo" } as any)));
+      const currentSchoolId = activeSchoolId || "school_demo";
+      setRawCampuses(mockCampuses.map(c => ({ ...c, schoolId: currentSchoolId } as any)));
+      setRawTeachers(mockTeachers.map(t => ({ ...t, schoolId: currentSchoolId } as any)));
+      setRawClasses(mockClasses.map(c => ({ ...c, schoolId: currentSchoolId } as any)));
+      setRawStudents(mockStudents.map(s => ({ ...s, schoolId: currentSchoolId } as any)));
+      setRawPayments(mockPayments.map(p => ({ ...p, schoolId: currentSchoolId } as any)));
+      setRawAuditLogs(mockAuditLogs.map(a => ({ ...a, schoolId: currentSchoolId } as any)));
+      setRawWaitlist(mockWaitlist.map(w => ({ ...w, schoolId: currentSchoolId } as any)));
       setRawReminders([]);
-      setSchoolConfig(getDefaultSchoolConfig(activeSchoolId || "school_demo"));
+      setSchoolConfig(getDefaultSchoolConfig(currentSchoolId));
       return;
     }
 
@@ -651,7 +709,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           smsTemplate: data.smsTemplate || "Rappel Lingua: Le solde de scolarité de {etudiant_nom} (tuteur: {parent_nom}) d'un montant de {montant} FCFA est attendu avant le {date_limite} pour éviter toute interruption. Merci.",
           smsDaysBefore: data.smsDaysBefore ?? 5,
           updatedAt: data.updatedAt,
-          updatedBy: data.updatedBy
+          updatedBy: data.updatedBy,
+          customLanguages: data.customLanguages || []
         });
       } else {
         setSchoolConfig(getDefaultSchoolConfig(activeSchoolId || "school_demo"));
@@ -1259,13 +1318,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return {
           success: true,
           waitlistId,
-          message: `Élève ajouté avec succès en liste d'attente (Position ${position}).`
+          message: `L'élève "${newWaitlistEntry.studentName}" a été ajouté avec succès en liste d'attente (Position ${position}).`
         };
       } catch (err: any) {
         if (err?.code === "permission-denied" || err?.message?.includes("Missing or insufficient permissions")) {
           console.warn("OPTIMISTIC FALLBACK: Adding waitlist entry locally.");
           setRawWaitlist(prev => [...prev, newWaitlistEntry]);
-          return { success: true, waitlistId, message: `Élève ajouté localement en liste d'attente (Mode Hors-Ligne/Démo).` };
+          return { success: true, waitlistId, message: `L'élève "${newWaitlistEntry.studentName}" a été ajouté localement en liste d'attente (Mode Hors-Ligne/Démo) (Position ${position}).` };
         }
         handleFirestoreError(err, OperationType.WRITE, `waitlist/${waitlistId}`);
         return { success: false, message: "Erreur lors de l'ajout en liste d'attente" };
@@ -1329,10 +1388,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         class: `${selectedClass.language} ${selectedClass.level} - ${selectedClass.period}`
       });
 
-      return {
+       return {
         success: true,
         studentId,
-        message: "Élève inscrit avec succès !"
+        message: `L'élève "${newStudent.firstName} ${newStudent.lastName}" a été créé avec succès.`
       };
     } catch (err: any) {
       if (err?.code === "permission-denied" || err?.message?.includes("Missing or insufficient permissions")) {
@@ -1354,7 +1413,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } as any;
           setRawPayments(prev => [...prev, newPayment]);
         }
-        return { success: true, studentId, message: "Élève inscrit localement avec succès (Mode Hors-Ligne/Démo) !" };
+        return { success: true, studentId, message: `L'élève "${newStudent.firstName} ${newStudent.lastName}" a été créé localement avec succès (Mode Hors-Ligne/Démo).` };
       }
       handleFirestoreError(err, OperationType.WRITE, `students/${studentId}`);
       return { success: false, message: "Erreur lors de l'inscription de l'élève" };
@@ -1896,12 +1955,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         smsGateway: newConfig.smsGateway !== undefined ? newConfig.smsGateway : (schoolConfig?.smsGateway || "default"),
         smsTemplate: newConfig.smsTemplate !== undefined ? newConfig.smsTemplate : (schoolConfig?.smsTemplate || "Rappel Lingua: Le solde de scolarité de {etudiant_nom} (tuteur: {parent_nom}) d'un montant de {montant} FCFA est attendu avant le {date_limite} pour éviter toute interruption. Merci."),
         smsDaysBefore: newConfig.smsDaysBefore !== undefined ? newConfig.smsDaysBefore : (schoolConfig?.smsDaysBefore ?? 5),
+        customLanguages: newConfig.customLanguages !== undefined ? newConfig.customLanguages : (schoolConfig?.customLanguages || []),
         updatedAt: new Date().toISOString(),
         updatedBy: {
           userId: currentUser.id,
           userName: currentUser.name
         }
       };
+      // For local session, update state directly since Firestore setDoc is simulated/bypassed
+      if (isLocalSession.current) {
+        setSchoolConfig(prev => prev ? { ...prev, ...mergedConfig } : (mergedConfig as any));
+      }
       await setDoc(configRef, mergedConfig, { merge: true });
       await handleAudit("UPDATE_STUDENT", targetSchoolId, mergedConfig.name, {
         info: "Personnalisation du profil de l'école (Paramètres SMS inclus)"
@@ -2190,6 +2254,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resetDatabase,
         schoolConfig,
         updateSchoolConfig,
+        uniqueLanguages,
         reminders,
         addReminder,
         runAutomaticSMSSweep,

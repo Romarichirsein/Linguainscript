@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useData } from "../context/DataContext";
-import { Campus, Teacher, Class } from "../types";
+import { Campus, Teacher, Class, UserRole } from "../types";
 import {
   GraduationCap,
   PlusCircle,
@@ -21,16 +21,18 @@ export const Classes: React.FC = () => {
     updateCampus,
     addTeacher,
     addClass,
-    updateClass
+    updateClass,
+    uniqueLanguages,
+    currentUser,
+    schoolConfig,
+    updateSchoolConfig
   } = useData();
 
-  // Dynamic languages extraction
-  const uniqueLanguages = useMemo(() => {
-    const defaultLangs = ["Allemand", "Anglais", "Chinois", "Espagnol", "Français", "Italien", "Portugais", "Russe"];
-    return Array.from(new Set([...defaultLangs, ...classes.map(c => c.language)])).sort();
-  }, [classes]);
+  const [activeSegment, setActiveSegment] = useState<"classes" | "teachers" | "campuses" | "languages">("classes");
 
-  const [activeSegment, setActiveSegment] = useState<"classes" | "teachers" | "campuses">("classes");
+  // State variables for custom language creation
+  const [newLanguageName, setNewLanguageName] = useState("");
+  const [isSubmittingLanguage, setIsSubmittingLanguage] = useState(false);
 
   // Standard Modals controls
   const [showCampusModal, setShowCampusModal] = useState(false);
@@ -127,6 +129,53 @@ export const Classes: React.FC = () => {
     }
   };
 
+  const handleCreateLanguage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanLang = newLanguageName.trim();
+    if (!cleanLang) return;
+
+    if (uniqueLanguages.map(l => l.toLowerCase()).includes(cleanLang.toLowerCase())) {
+      alert("Cette langue existe déjà.");
+      return;
+    }
+
+    setIsSubmittingLanguage(true);
+    try {
+      const currentCustoms = schoolConfig?.customLanguages || [];
+      await updateSchoolConfig({
+        customLanguages: [...currentCustoms, cleanLang]
+      });
+      setNewLanguageName("");
+    } catch (err: any) {
+      console.error("Erreur lors de l'ajout de la langue:", err);
+      alert("Erreur lors de l'ajout de la langue : " + (err.message || err));
+    } finally {
+      setIsSubmittingLanguage(false);
+    }
+  };
+
+  const handleDeleteLanguage = async (lang: string) => {
+    const isUsedInClass = classes.some(c => c.language === lang);
+    if (isUsedInClass) {
+      alert(`Impossible de supprimer cette langue : elle est actuellement enseignée dans une ou plusieurs classes.`);
+      return;
+    }
+
+    if (!window.confirm(`⚠️ Confirmez-vous le retrait de la langue "${lang}" de la liste de l'établissement ?`)) {
+      return;
+    }
+
+    try {
+      const currentCustoms = schoolConfig?.customLanguages || [];
+      await updateSchoolConfig({
+        customLanguages: currentCustoms.filter(l => l !== lang)
+      });
+    } catch (err: any) {
+      console.error("Erreur lors de la suppression de la langue:", err);
+      alert("Erreur lors de la suppression de la langue : " + (err.message || err));
+    }
+  };
+
   const toggleLangSpec = (lang: string) => {
     setTeacherLangs(prev =>
       prev.includes(lang) ? prev.filter(l => l !== lang) : [...prev, lang]
@@ -189,6 +238,16 @@ export const Classes: React.FC = () => {
           }`}
         >
           Campus ({campuses.length})
+        </button>
+        <button
+          onClick={() => setActiveSegment("languages")}
+          className={`pb-2.5 px-5 text-sm font-bold tracking-wider transition border-b-2 uppercase ${
+            activeSegment === "languages"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Langues ({uniqueLanguages.length})
         </button>
       </div>
 
@@ -377,6 +436,71 @@ export const Classes: React.FC = () => {
                       <span className="font-bold text-slate-600 font-mono">100% cloud sécurisé</span>
                     </p>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Segment 4 Panel: Languages management */}
+      {activeSegment === "languages" && (
+        <div className="space-y-4 animate-fadeIn">
+          {/* Card to create a language (Directrice & SuperAdmin only) */}
+          {(currentUser?.role === UserRole.DIRECTRICE || currentUser?.role === UserRole.SUPERADMIN) && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="font-sans text-sm font-bold text-slate-800">Ajouter une nouvelle langue</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Saisissez le nom d'une nouvelle langue pour l'ajouter à la liste de l'établissement.</p>
+                </div>
+              </div>
+              <form onSubmit={handleCreateLanguage} className="flex flex-col sm:flex-row gap-3 text-xs">
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Espagnol, Italien, Arabe..."
+                  value={newLanguageName}
+                  onChange={e => setNewLanguageName(e.target.value)}
+                  className="flex-1 rounded-xl border border-slate-200 p-2.5 text-slate-850 outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isSubmittingLanguage}
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingLanguage ? "Création..." : "Ajouter la langue"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* List of all languages */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {uniqueLanguages.map(lang => {
+              const isDefault = ["Allemand", "Anglais", "Chinois", "Espagnol", "Français", "Italien", "Portugais", "Russe"].includes(lang);
+              const classesCount = classes.filter(c => c.language === lang).length;
+              return (
+                <div key={lang} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm flex items-center justify-between">
+                  <div className="space-y-1">
+                    <span className="font-bold text-slate-800 text-sm">{lang}</span>
+                    <div className="flex gap-2 items-center text-[10px]">
+                      <span className={`px-1.5 py-0.5 rounded font-semibold ${isDefault ? "bg-slate-100 text-slate-600" : "bg-purple-100 text-purple-700"}`}>
+                        {isDefault ? "Standard" : "Personnalisée"}
+                      </span>
+                      <span className="text-slate-400">{classesCount} classe(s)</span>
+                    </div>
+                  </div>
+                  {!isDefault && (currentUser?.role === UserRole.DIRECTRICE || currentUser?.role === UserRole.SUPERADMIN) && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteLanguage(lang)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg p-1.5 transition inline-flex items-center cursor-pointer"
+                      title="Supprimer la langue"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               );
             })}

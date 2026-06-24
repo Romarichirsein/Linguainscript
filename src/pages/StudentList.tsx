@@ -29,7 +29,7 @@ export const StudentList: React.FC<StudentListProps> = ({
   selectedStudentId,
   setSelectedStudentId
 }) => {
-  const { students, classes, campuses, teachers, payments, addPayment, currentUser, currentSchool, currentPlan } = useData();
+  const { students, classes, campuses, teachers, payments, addPayment, currentUser, currentSchool, currentPlan, uniqueLanguages } = useData();
 
   // Component states
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,10 +65,7 @@ export const StudentList: React.FC<StudentListProps> = ({
     return Array.from(allTags);
   }, [students]);
 
-  const uniqueLanguages = useMemo(() => {
-    const defaultLangs = ["Allemand", "Anglais", "Chinois", "Espagnol", "Français", "Italien", "Portugais", "Russe"];
-    return Array.from(new Set([...defaultLangs, ...classes.map(c => c.language)])).sort();
-  }, [classes]);
+  // uniqueLanguages is now provided by DataContext (centralized with custom languages)
 
   // Multi-filter matching pipeline
   const filteredStudents = useMemo(() => {

@@ -147,6 +147,7 @@ export interface SchoolConfig {
     userId: string;
     userName: string;
   };
+  customLanguages?: string[];
 }
 
 export interface Reminder {

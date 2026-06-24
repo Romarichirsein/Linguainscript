@@ -629,6 +629,9 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
             </span>
             <div>
               <h3 className="text-lg font-bold text-slate-800">Enregistrement Validé !</h3>
+              <p className="text-emerald-600 text-sm font-semibold mt-2">
+                L'élève "{firstName} {lastName}" a été créé avec succès.
+              </p>
               <p className="text-slate-500 text-xs mt-1 max-w-md mx-auto">
                 Le dossier de l'élève a été sécurisé en temps réel dans la base de données.
               </p>
