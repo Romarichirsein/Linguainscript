@@ -242,7 +242,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Flag to track local/demo sessions where Firebase Auth is not used
   // This prevents onAuthStateChanged from overriding manually set mock users
-  const isLocalSession = useRef(localStorage.getItem("lingua_isLocalSession") === "true");
+  // NOTE: We only restore the local session flag from localStorage if it was set by an EXPLICIT demo login.
+  // Transient network errors should NOT permanently lock the app in offline mode across reloads.
+  const isLocalSession = useRef(localStorage.getItem("lingua_isDemoLogin") === "true");
 
   useEffect(() => {
     try {
@@ -311,19 +313,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Skip connection test in local session mode
       if (isLocalSession.current) return;
       try {
-        // Race against a 4s timeout to prevent hanging with persistent cache
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Connection test timeout")), 4000));
+        // Race against a 6s timeout to tolerate slow mobile/network connections
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Connection test timeout")), 6000));
         await Promise.race([getDocFromServer(doc(db, "test", "connection")), timeout]);
       } catch (error) {
-        console.warn("Firestore connection check failed. Falling back to local/demo session mode.", error);
-        isLocalSession.current = true;
-        localStorage.setItem("lingua_isLocalSession", "true");
+        // Do NOT persist offline mode. It's a transient issue. The app will try again on next action.
+        console.warn("Firestore initial connection check failed. App will retry on next request.", error);
       }
     };
     testConnection();
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      // If we're in a local/demo session, skip database queries and keep the loaded local profile
+      // If we're in an explicit local/demo session, skip database queries and keep the loaded local profile
       if (isLocalSession.current) {
         setFirebaseUser(user);
         setLoading(false);
@@ -419,9 +420,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err) {
           console.error("Error subscribing to user profile or Firestore offline:", err);
           
-          // Switch to local mode since Firestore operations timed out or errored
+          // Temporary fallback: set local mode for this session only (NOT persisted to localStorage)
+          // This allows the next page reload to try Firestore again.
           isLocalSession.current = true;
-          localStorage.setItem("lingua_isLocalSession", "true");
 
           // Determine profile based on email address
           const cleanEmail = user.email?.trim().toLowerCase() || "";
@@ -1074,8 +1075,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           authErr
         );
         // Mark this as a local session so onAuthStateChanged won't override our mock user
+        // Do NOT use lingua_isLocalSession to persist this — it's a transient auth issue.
         isLocalSession.current = true;
-        localStorage.setItem("lingua_isLocalSession", "true");
+        localStorage.setItem("lingua_isDemoLogin", "true");
       }
 
       const mockFUser = {
@@ -1116,7 +1118,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginAsDemoUser = async (email: string, name: string, role: UserRole, schoolId: string | null) => {
     setLoading(true);
     isLocalSession.current = true;
-    localStorage.setItem("lingua_isLocalSession", "true");
+    // Explicit demo login: persist this flag so reloads stay in demo mode
+    localStorage.setItem("lingua_isDemoLogin", "true");
     const mockUid = `demo_${role}_${Date.now()}`;
     const mockFUser = {
       uid: mockUid,
@@ -1144,9 +1147,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    // Clear local session flag so onAuthStateChanged can work normally on next login
+    // Clear all session flags so onAuthStateChanged can work normally on next login
     isLocalSession.current = false;
-    localStorage.removeItem("lingua_isLocalSession");
+    localStorage.removeItem("lingua_isDemoLogin");
+    localStorage.removeItem("lingua_isLocalSession"); // Legacy cleanup
     localStorage.removeItem("lingua_firebaseUser");
     localStorage.removeItem("lingua_currentUser");
     try {
@@ -1309,6 +1313,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         schoolId: activeSchoolId || "school_demo"
       } as any;
 
+      if (isLocalSession.current) {
+        // Demo mode: update local state only
+        setRawWaitlist(prev => [...prev, newWaitlistEntry]);
+        return { success: true, waitlistId, message: `L'élève "${newWaitlistEntry.studentName}" a été ajouté en liste d'attente (Mode Démo, Position ${position}).` };
+      }
+
       try {
         await setDoc(doc(db, "waitlist", waitlistId), newWaitlistEntry);
         await handleAudit("ADD_WAITLIST", newWaitlistEntry.studentId, newWaitlistEntry.studentName, {
@@ -1321,13 +1331,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           message: `L'élève "${newWaitlistEntry.studentName}" a été ajouté avec succès en liste d'attente (Position ${position}).`
         };
       } catch (err: any) {
-        if (err?.code === "permission-denied" || err?.message?.includes("Missing or insufficient permissions")) {
-          console.warn("OPTIMISTIC FALLBACK: Adding waitlist entry locally.");
-          setRawWaitlist(prev => [...prev, newWaitlistEntry]);
-          return { success: true, waitlistId, message: `L'élève "${newWaitlistEntry.studentName}" a été ajouté localement en liste d'attente (Mode Hors-Ligne/Démo) (Position ${position}).` };
-        }
         handleFirestoreError(err, OperationType.WRITE, `waitlist/${waitlistId}`);
-        return { success: false, message: "Erreur lors de l'ajout en liste d'attente" };
+        return { success: false, message: `Erreur lors de l'ajout en liste d'attente : ${err?.message || "Erreur Firestore"}` };
       }
     }
 
@@ -1347,6 +1352,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatedAt: new Date().toISOString(),
       schoolId: activeSchoolId || "school_demo"
     } as any;
+
+    // DEMO MODE: update local state only, no Firestore write
+    if (isLocalSession.current) {
+      const demoStudent = { ...newStudent, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      setRawStudents(prev => [...prev, demoStudent]);
+      setRawClasses(prev => prev.map(c => c.id === selectedClass.id ? { ...c, currentCount: c.currentCount + 1 } : c));
+      if (paymentAmount > 0 && paymentMode) {
+        const paymentId = `pay_${Date.now()}`;
+        const demoPayment: Payment = {
+          id: paymentId,
+          studentId,
+          amount: paymentAmount,
+          date: new Date().toISOString().split("T")[0],
+          mode: paymentMode,
+          recordedBy: { userId: currentUser.id, userName: currentUser.name },
+          note: paymentNote || "Paiement initial de l'inscription",
+          schoolId: activeSchoolId || "school_demo"
+        } as any;
+        setRawPayments(prev => [...prev, demoPayment]);
+      }
+      return { success: true, studentId, message: `L'élève "${newStudent.firstName} ${newStudent.lastName}" a été créé (Mode Démo).` };
+    }
 
     try {
       // 1. Write Student to firestore with server timestamps for strict security compliance
@@ -1388,35 +1415,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         class: `${selectedClass.language} ${selectedClass.level} - ${selectedClass.period}`
       });
 
-       return {
+      return {
         success: true,
         studentId,
-        message: `L'élève "${newStudent.firstName} ${newStudent.lastName}" a été créé avec succès.`
+        message: `L'élève "${newStudent.firstName} ${newStudent.lastName}" a été inscrit avec succès.`
       };
     } catch (err: any) {
-      if (err?.code === "permission-denied" || err?.message?.includes("Missing or insufficient permissions")) {
-        console.warn("OPTIMISTIC FALLBACK: Adding student locally to bypass rules block.");
-        const fallbackStudent = { ...newStudent, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-        setRawStudents(prev => [...prev, fallbackStudent]);
-        setRawClasses(prev => prev.map(c => c.id === selectedClass.id ? { ...c, currentCount: c.currentCount + 1 } : c));
-        if (paymentAmount > 0 && paymentMode) {
-          const paymentId = `pay_${Date.now()}`;
-          const newPayment: Payment = {
-            id: paymentId,
-            studentId,
-            amount: paymentAmount,
-            date: new Date().toISOString().split("T")[0],
-            mode: paymentMode,
-            recordedBy: { userId: currentUser.id, userName: currentUser.name },
-            note: paymentNote || "Paiement initial de l'inscription",
-            schoolId: activeSchoolId || "school_demo"
-          } as any;
-          setRawPayments(prev => [...prev, newPayment]);
-        }
-        return { success: true, studentId, message: `L'élève "${newStudent.firstName} ${newStudent.lastName}" a été créé localement avec succès (Mode Hors-Ligne/Démo).` };
-      }
-      handleFirestoreError(err, OperationType.WRITE, `students/${studentId}`);
-      return { success: false, message: "Erreur lors de l'inscription de l'élève" };
+      // In online mode, propagate the real error to the UI. Don't silently mask it.
+      console.error("Firestore write failed for student creation:", err);
+      const friendlyMsg = err?.code === "permission-denied"
+        ? "Accès refusé : Vos règles Firestore ne permettent pas cette écriture. Vérifiez la configuration Firebase."
+        : `Erreur lors de l'inscription : ${err?.message || "Erreur Firestore"}`;
+      return { success: false, message: friendlyMsg };
     }
   };
 
@@ -1603,34 +1613,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString(),
       schoolId: activeSchoolId || "school_demo"
     } as any;
+    if (isLocalSession.current) {
+      setRawCampuses(prev => [...prev, newCampus as any]);
+      return;
+    }
     try {
       await setDoc(doc(db, "campuses", id), newCampus);
       await handleAudit("UPDATE_STUDENT", id, name, { action: "Ajout Campus", address });
     } catch (err: any) {
-      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
-      if (isPermissionErr) {
-        // Firestore rules not deployed to custom database – update local state as fallback
-        console.warn("Firestore write denied (rules may not be deployed to the custom database). Applying campus locally.", err);
-        setRawCampuses(prev => [...prev, newCampus as any]);
-      } else {
-        handleFirestoreError(err, OperationType.WRITE, `campuses/${id}`);
-      }
+      handleFirestoreError(err, OperationType.WRITE, `campuses/${id}`);
     }
   };
 
   const updateCampus = async (id: string, name: string, address: string, isActive: boolean) => {
     checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Modification d'un campus");
+    if (isLocalSession.current) {
+      setRawCampuses(prev => prev.map(c => c.id === id ? { ...c, name, address, isActive } as Campus : c));
+      return;
+    }
     try {
       await updateDoc(doc(db, "campuses", id), { name, address, isActive });
       await handleAudit("UPDATE_STUDENT", id, name, { action: "Modification Campus", address, isActive });
     } catch (err: any) {
-      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
-      if (isPermissionErr) {
-        console.warn("Firestore update denied. Applying campus update locally.", err);
-        setRawCampuses(prev => prev.map(c => c.id === id ? { ...c, name, address, isActive } as Campus : c));
-      } else {
-        handleFirestoreError(err, OperationType.WRITE, `campuses/${id}`);
-      }
+      handleFirestoreError(err, OperationType.WRITE, `campuses/${id}`);
     }
   };
 
@@ -1671,17 +1676,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isActive: true,
       schoolId: activeSchoolId || "school_demo"
     } as any;
+    if (isLocalSession.current) {
+      setRawTeachers(prev => [...prev, newTeacher as any]);
+      return;
+    }
     try {
       await setDoc(doc(db, "teachers", id), newTeacher);
       await handleAudit("UPDATE_STUDENT", id, name, { action: "Ajout Professeur", languages });
     } catch (err: any) {
-      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
-      if (isPermissionErr) {
-        console.warn("Firestore write denied for teacher. Applying locally.", err);
-        setRawTeachers(prev => [...prev, newTeacher as any]);
-      } else {
-        handleFirestoreError(err, OperationType.WRITE, `teachers/${id}`);
-      }
+      handleFirestoreError(err, OperationType.WRITE, `teachers/${id}`);
     }
   };
 
@@ -1695,32 +1698,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isActive: true,
       schoolId: activeSchoolId || "school_demo"
     } as any;
+    if (isLocalSession.current) {
+      setRawClasses(prev => [...prev, newClass as any]);
+      return;
+    }
     try {
       await setDoc(doc(db, "classes", id), newClass);
       await handleAudit("UPDATE_STUDENT", id, `${classData.language} ${classData.level}`, { action: "Ajout Classe", period: classData.period });
     } catch (err: any) {
-      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
-      if (isPermissionErr) {
-        console.warn("Firestore write denied for class. Applying locally.", err);
-        setRawClasses(prev => [...prev, newClass as any]);
-      } else {
-        handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
-      }
+      handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
     }
   };
 
   const updateClass = async (id: string, updated: ClassUpdate) => {
     checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE, UserRole.SECRETAIRE], "Modification d'une classe");
+    if (isLocalSession.current) {
+      setRawClasses(prev => prev.map(c => c.id === id ? { ...c, ...updated } as Class : c));
+      return;
+    }
     try {
       await updateDoc(doc(db, "classes", id), updated);
     } catch (err: any) {
-      const isPermissionErr = err?.message?.includes("permission") || err?.code === "permission-denied";
-      if (isPermissionErr) {
-        console.warn("Firestore update denied for class. Applying locally.", err);
-        setRawClasses(prev => prev.map(c => c.id === id ? { ...c, ...updated } as Class : c));
-      } else {
-        handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
-      }
+      handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
     }
   };
 

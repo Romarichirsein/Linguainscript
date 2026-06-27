@@ -19,7 +19,7 @@ interface NewStudentProps {
 }
 
 export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelectedStudentId }) => {
-  const { classes, campuses, teachers, addStudent, currentUser, payments } = useData();
+  const { classes, campuses, teachers, addStudent, currentUser, payments, students } = useData();
 
   const isDirectrice = currentUser?.role === "directrice";
   const userCampusId = currentUser?.campusId;
@@ -179,7 +179,7 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
 
   const printFormReceipt = () => {
     if (!justCreatedId) return;
-    const enrolledStudent = useData().students.find(s => s.id === justCreatedId);
+    const enrolledStudent = students.find(s => s.id === justCreatedId);
     if (!enrolledStudent) return;
 
     const enrolledPayments = payments.filter(p => p.studentId === justCreatedId);
