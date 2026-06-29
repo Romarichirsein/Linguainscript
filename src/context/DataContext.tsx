@@ -342,27 +342,41 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (snapshot.exists()) {
             const data = snapshot.data() as UserProfile;
             
-            // Re-verify if directrice email matches standard schools list in case superadmin moved credentials
-            const schoolsSnap = await Promise.race([getDocs(collection(db, "schools")), docTimeout]);
-            const schoolsList = schoolsSnap.docs.map(doc => doc.data() as School);
-            const matchingSchool = schoolsList.find(s => s.directriceEmail?.toLowerCase() === user.email?.toLowerCase());
+            // Set user profile and unblock the loading spinner immediately!
+            // This allows the dashboard to render under 1 second.
+            setCurrentUser(data);
+            setLoading(false);
 
-            if (isSuperAdminEmail && data.role !== UserRole.SUPERADMIN) {
-              const updatedProfile = { ...data, role: UserRole.SUPERADMIN, schoolId: null };
-              await Promise.race([setDoc(userRef, updatedProfile), docTimeout]).catch(err => console.warn("Failed syncing role to Firestore: ", err));
-              setCurrentUser(updatedProfile);
-            } else if (matchingSchool && (data.role !== UserRole.DIRECTRICE || data.schoolId !== matchingSchool.id)) {
-              const updatedProfile: UserProfile = { 
-                ...data, 
-                role: UserRole.DIRECTRICE, 
-                schoolId: matchingSchool.id,
-                campusId: null
-              };
-              await Promise.race([setDoc(userRef, updatedProfile), docTimeout]).catch(err => console.warn("Failed syncing role to Firestore: ", err));
-              setCurrentUser(updatedProfile);
-            } else {
-              setCurrentUser(data);
-            }
+            // Run verification check in the background asynchronously
+            (async () => {
+              try {
+                const cleanEmail = user.email?.toLowerCase();
+                if (isSuperAdminEmail && data.role === UserRole.SUPERADMIN) return;
+                if (data.role === UserRole.DIRECTRICE && data.schoolId) return;
+
+                const schoolsSnap = await getDocs(collection(db, "schools"));
+                const schoolsList = schoolsSnap.docs.map(doc => doc.data() as School);
+                const matchingSchool = schoolsList.find(s => s.directriceEmail?.toLowerCase() === cleanEmail);
+
+                if (isSuperAdminEmail && data.role !== UserRole.SUPERADMIN) {
+                  const updatedProfile = { ...data, role: UserRole.SUPERADMIN, schoolId: null };
+                  await setDoc(userRef, updatedProfile);
+                  setCurrentUser(updatedProfile);
+                } else if (matchingSchool && (data.role !== UserRole.DIRECTRICE || data.schoolId !== matchingSchool.id)) {
+                  const updatedProfile: UserProfile = { 
+                    ...data, 
+                    role: UserRole.DIRECTRICE, 
+                    schoolId: matchingSchool.id,
+                    campusId: null
+                  };
+                  await setDoc(userRef, updatedProfile);
+                  setCurrentUser(updatedProfile);
+                }
+              } catch (bgErr) {
+                console.warn("Background profile verification check failed (offline/slow connection):", bgErr);
+              }
+            })();
+            return;
           } else {
             // Check if there is an existing manual placeholder profile created by superadmin with this email
             const qUsers = query(collection(db, "users"), where("email", "==", user.email || ""));
@@ -634,8 +648,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const items = snapshot.docs.map(d => mapDoc<Campus>(d));
       setRawCampuses(items);
       
-      // Seed if empty
-      if (items.length === 0) {
+      // Seed if empty, only if the user is the Super Admin (avoids multiple writes by tenant managers)
+      if (items.length === 0 && auth.currentUser?.email === "romarichirsein@gmail.com") {
         console.log("Database is empty. Seeding mock standard data...");
         await doDatabaseSeed();
       }
