@@ -375,22 +375,73 @@ function LoginScreen() {
   );
 }
 
+// Helper to parse route information from URL Hash (e.g. #/students?id=stud_123)
+const getRouteFromHash = () => {
+  if (typeof window === "undefined") return { tab: "dashboard", studentId: null };
+  const hash = window.location.hash.replace(/^#\/?/, "");
+  if (!hash) return { tab: "dashboard", studentId: null };
+
+  const parts = hash.split("?");
+  const tab = parts[0] || "dashboard";
+  let studentId: string | null = null;
+  if (parts[1]) {
+    const params = new URLSearchParams(parts[1]);
+    studentId = params.get("id");
+  }
+  return { tab, studentId };
+};
+
+// Helper to push state changes to URL Hash
+const navigateTo = (tab: string, studentId: string | null = null) => {
+  if (typeof window === "undefined") return;
+  const finalStudentId = tab === "students" ? studentId : null;
+  let newHash = `#/${tab}`;
+  if (finalStudentId) {
+    newHash += `?id=${finalStudentId}`;
+  }
+  window.location.hash = newHash;
+};
+
 function DashboardContainer() {
   const { firebaseUser, loading, currentUser, isLocalSession, currentPlan, logout } = useData();
-  const [currentTab, setCurrentTab] = useState("dashboard");
+  
+  // Initialize navigation state from URL Hash
+  const initialRoute = getRouteFromHash();
+  const [currentTab, setCurrentTab] = useState(initialRoute.tab);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(initialRoute.studentId);
+  
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+
+  // Sync state with browser back/forward buttons or hash change events
+  React.useEffect(() => {
+    const handleHashChange = () => {
+      const { tab, studentId } = getRouteFromHash();
+      setCurrentTab(tab);
+      setSelectedStudentId(studentId);
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  // Intercept setter calls and push them to URL Hash
+  const handleSetCurrentTab = (tab: string) => {
+    navigateTo(tab, tab === "students" ? selectedStudentId : null);
+  };
+
+  const handleSetSelectedStudentId = (id: string | null) => {
+    navigateTo(currentTab, id);
+  };
 
   // Determine if demo was EXPLICITLY requested vs involuntary offline
   const isDemoLogin = typeof window !== "undefined" && localStorage.getItem("lingua_isDemoLogin") === "true";
 
-  // Auto redirect Super Admin to 'saas' view on startup
+  // Auto redirect Super Admin to 'saas' view on startup if hash is not already saas
   React.useEffect(() => {
     if (currentUser?.role === "superadmin" && currentTab === "dashboard") {
-      setCurrentTab("saas");
+      handleSetCurrentTab("saas");
     }
-  }, [currentUser]);
+  }, [currentUser, currentTab]);
 
   // Show loading spinner while session is being resolved
   if (loading) {
@@ -430,53 +481,53 @@ function DashboardContainer() {
         return <SaaSManagement />;
 
       case "dashboard":
-        return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+        return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
       
       case "newStudent":
         if (currentPlan && !currentPlan.canCreateStudents) {
-          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+          return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
         }
-        return <NewStudent setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+        return <NewStudent setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
 
       case "students":
         if (selectedStudentId) {
           return (
             <StudentDetails
               studentId={selectedStudentId}
-              onBack={() => setSelectedStudentId(null)}
-              setCurrentTab={setCurrentTab}
+              onBack={() => handleSetSelectedStudentId(null)}
+              setCurrentTab={handleSetCurrentTab}
             />
           );
         }
         return (
           <StudentList
-            setCurrentTab={setCurrentTab}
+            setCurrentTab={handleSetCurrentTab}
             selectedStudentId={selectedStudentId}
-            setSelectedStudentId={setSelectedStudentId}
+            setSelectedStudentId={handleSetSelectedStudentId}
           />
         );
 
       case "waitlist":
         if (currentPlan && !currentPlan.canManageWaitlist) {
-          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+          return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
         }
         return <Waitlist />;
 
       case "reports":
         if (currentPlan && !currentPlan.canViewReports) {
-          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+          return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
         }
         return <Reports />;
 
       case "renewals":
         if (currentPlan && !currentPlan.canManageRenewals) {
-          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+          return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
         }
         return <Renewals />;
 
       case "classes":
         if (currentPlan && !currentPlan.canManageClasses) {
-          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+          return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
         }
         return <Classes />;
 
@@ -485,12 +536,12 @@ function DashboardContainer() {
 
       case "audit":
         if (currentPlan && !currentPlan.canViewHistory) {
-          return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+          return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
         }
         return <AuditLog />;
 
       default:
-        return <Dashboard setCurrentTab={setCurrentTab} setSelectedStudentId={setSelectedStudentId} />;
+        return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
     }
   };
 
@@ -503,9 +554,9 @@ function DashboardContainer() {
           setCurrentTab={(tab) => {
             // Reset selected student details when navigating away
             if (tab !== "students") {
-              setSelectedStudentId(null);
+              handleSetSelectedStudentId(null);
             }
-            setCurrentTab(tab);
+            handleSetCurrentTab(tab);
           }}
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
@@ -518,8 +569,8 @@ function DashboardContainer() {
         <Navbar
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
-          setCurrentTab={setCurrentTab}
-          setSelectedStudentId={setSelectedStudentId}
+          setCurrentTab={handleSetCurrentTab}
+          setSelectedStudentId={handleSetSelectedStudentId}
           focusMode={focusMode}
           setFocusMode={setFocusMode}
         />

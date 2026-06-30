@@ -1329,10 +1329,10 @@ export function SaaSManagement() {
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-sm font-bold text-slate-800 mb-4">Alertes d'Expiration J-7 en cours</h3>
                 <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-                  {systemNotifications.filter(n => n.type === "subscription_warning").length === 0 ? (
+                  {systemNotifications.filter(n => n.type === "subscription_warning" && !n.read).length === 0 ? (
                     <p className="py-8 text-center text-xs text-slate-400 italic">Aucune alerte active pour le moment.</p>
                   ) : (
-                    systemNotifications.filter(n => n.type === "subscription_warning").map(notif => (
+                    systemNotifications.filter(n => n.type === "subscription_warning" && !n.read).map(notif => (
                       <div key={notif.id} className="p-3 bg-rose-50/30 rounded-xl border border-rose-100/50 space-y-1.5 text-xs">
                         <div className="flex justify-between items-start gap-2">
                           <span className="font-bold text-red-700">{notif.schoolName}</span>
@@ -1343,7 +1343,21 @@ export function SaaSManagement() {
                         <p className="text-[11px] text-slate-600 leading-snug">{notif.message}</p>
                         <div className="flex justify-between items-center pt-1 border-t border-slate-100/50">
                           <span className="text-[9px] text-slate-450 font-medium">Alerte auto J-7</span>
-                          <span className={`inline-block w-2 h-2 rounded-full ${notif.read ? "bg-slate-300" : "bg-red-500 animate-pulse"}`} title={notif.read ? "Lu" : "Non lu"} />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await updateSystemNotification(notif.id, { read: true });
+                                } catch (e) {
+                                  console.error(e);
+                                }
+                              }}
+                              className="text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                            >
+                              Marquer comme lu
+                            </button>
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" title="Non lu" />
+                          </div>
                         </div>
                       </div>
                     ))

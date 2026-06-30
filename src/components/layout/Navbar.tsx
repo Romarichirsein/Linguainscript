@@ -401,7 +401,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                     }}
                                     className="text-[9px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                                   >
-                                    Ignorer
+                                    Marquer comme lu
                                   </button>
                                 </div>
                               </div>
