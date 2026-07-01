@@ -1992,6 +1992,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       await setDoc(doc(db, "reminders", reminderId), newReminder);
+      
+      // Log notification in audit trail database
+      await handleAudit("ADD_REMINDER", reminderData.studentId, reminderData.studentName, {
+        medium: reminderData.medium,
+        amountDue: reminderData.amountDue,
+        info: `Notification manuelle envoyée par ${currentUser.name} (${reminderData.medium}).`
+      });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `reminders/${reminderId}`);
     }
