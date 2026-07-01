@@ -28,7 +28,8 @@ import {
   getDocFromServer,
   Timestamp,
   serverTimestamp,
-  increment
+  increment,
+  getDocFromCache
 } from "firebase/firestore";
 import {
   signInWithPopup,
@@ -335,8 +336,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user) {
         const userRef = doc(db, "users", user.uid);
         try {
+          let snapshot;
           const docTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Firestore operation timeout")), 4000));
-          const snapshot = await Promise.race([getDoc(userRef), docTimeout]);
+          try {
+            snapshot = await Promise.race([getDoc(userRef), docTimeout]);
+          } catch (netErr) {
+            console.warn("Network request for user profile failed or timed out. Attempting cache read...");
+            try {
+              snapshot = await getDocFromCache(userRef);
+            } catch (cacheErr) {
+              console.error("Cache read failed as well. Falling back to default handler.", cacheErr);
+              throw netErr; // Rethrow network error to trigger the main fallback
+            }
+          }
           const isSuperAdminEmail = user.email === "romarichirsein@gmail.com";
 
           if (snapshot.exists()) {

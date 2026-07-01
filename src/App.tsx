@@ -375,14 +375,43 @@ function LoginScreen() {
   );
 }
 
-// Helper to parse route information from URL Hash (e.g. #/students?id=stud_123)
+// Localized route mappings (tab ID <-> URL Route name)
+const tabToHashRouteMap: Record<string, string> = {
+  dashboard: "tableau-de-bord",
+  newStudent: "inscription",
+  students: "eleves",
+  waitlist: "liste-d-attente",
+  reports: "rapports",
+  renewals: "renouvellements",
+  classes: "classes",
+  settings: "parametres",
+  audit: "historique",
+  saas: "super-admin"
+};
+
+const hashRouteToTabMap: Record<string, string> = {
+  "tableau-de-bord": "dashboard",
+  "inscription": "newStudent",
+  "eleves": "students",
+  "liste-d-attente": "waitlist",
+  "rapports": "reports",
+  "renouvellements": "renewals",
+  "classes": "classes",
+  "parametres": "settings",
+  "historique": "audit",
+  "super-admin": "saas"
+};
+
+// Helper to parse route information from URL Hash (e.g. #/eleves?id=stud_123)
 const getRouteFromHash = () => {
   if (typeof window === "undefined") return { tab: "dashboard", studentId: null };
   const hash = window.location.hash.replace(/^#\/?/, "");
   if (!hash) return { tab: "dashboard", studentId: null };
 
   const parts = hash.split("?");
-  const tab = parts[0] || "dashboard";
+  const routePath = parts[0] || "tableau-de-bord";
+  const tab = hashRouteToTabMap[routePath] || "dashboard";
+
   let studentId: string | null = null;
   if (parts[1]) {
     const params = new URLSearchParams(parts[1]);
@@ -395,7 +424,8 @@ const getRouteFromHash = () => {
 const navigateTo = (tab: string, studentId: string | null = null) => {
   if (typeof window === "undefined") return;
   const finalStudentId = tab === "students" ? studentId : null;
-  let newHash = `#/${tab}`;
+  const routePath = tabToHashRouteMap[tab] || "tableau-de-bord";
+  let newHash = `#/${routePath}`;
   if (finalStudentId) {
     newHash += `?id=${finalStudentId}`;
   }
