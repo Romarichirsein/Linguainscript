@@ -99,7 +99,7 @@ export interface Payment {
 
 export interface AuditLog {
   id: string;
-  action: "CREATE_STUDENT" | "ADD_PAYMENT" | "UPDATE_STUDENT" | "CHANGE_CLASS" | "ADD_WAITLIST" | "FROM_WAITLIST" | "RENEWAL" | "ADD_REMINDER";
+  action: "CREATE_STUDENT" | "ADD_PAYMENT" | "UPDATE_STUDENT" | "CHANGE_CLASS" | "ADD_WAITLIST" | "FROM_WAITLIST" | "RENEWAL" | "ADD_REMINDER" | "DELETE_STUDENT";
   targetId: string;
   targetName: string;
   userId: string;

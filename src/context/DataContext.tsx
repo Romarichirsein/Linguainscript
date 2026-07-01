@@ -101,6 +101,7 @@ interface DataContextType {
   ) => Promise<{ success: boolean; studentId?: string; waitlistId?: string; message: string }>;
 
   updateStudent: (id: string, updated: StudentUpdate) => Promise<void>;
+  deleteStudent: (studentId: string) => Promise<void>;
   addPayment: (studentId: string, amount: number, mode: "Espèces" | "Mobile Money" | "Virement", note?: string) => Promise<void>;
   renewStudent: (id: string, newExpirationDate: string, cost: number, paymentAmount: number, mode: "Espèces" | "Mobile Money" | "Virement") => Promise<void>;
   
@@ -1530,6 +1531,42 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteStudent = async (studentId: string) => {
+    checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Suppression d'un élève");
+    if (!currentUser) return;
+
+    const student = rawStudents.find(s => s.id === studentId);
+    if (!student) return;
+
+    if (isLocalSession.current) {
+      setRawStudents(prev => prev.filter(s => s.id !== studentId));
+      if (student.classId) {
+        setRawClasses(prev => prev.map(c => c.id === student.classId ? { ...c, currentCount: Math.max(0, c.currentCount - 1) } : c));
+      }
+      return;
+    }
+
+    try {
+      // 1. Delete student document
+      await deleteDoc(doc(db, "students", studentId));
+
+      // 2. Decrement class count
+      if (student.classId) {
+        await updateDoc(doc(db, "classes", student.classId), {
+          currentCount: increment(-1)
+        }).catch(err => console.warn("Failed to update class count on student delete:", err));
+      }
+
+      // 3. Log deletion in audit trailing logs
+      await handleAudit("DELETE_STUDENT", studentId, `${student.firstName} ${student.lastName}`, {
+        classId: student.classId,
+        schoolId: student.schoolId
+      });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, `students/${studentId}`);
+    }
+  };
+
   const addPayment = async (studentId: string, amount: number, mode: "Espèces" | "Mobile Money" | "Virement", note?: string) => {
     if (!currentUser) return;
     const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
@@ -2267,6 +2304,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentPlan,
         addStudent,
         updateStudent,
+        deleteStudent,
         addPayment,
         renewStudent,
         addCampus,

@@ -28,6 +28,7 @@ export const Reports: React.FC = () => {
   });
   
   const [filterCampusId, setFilterCampusId] = useState("");
+  const [temporalGrouping, setTemporalGrouping] = useState<"week" | "month">("week");
 
   // Determine active date boundaries in memory
   const dateBoundaries = useMemo(() => {
@@ -182,6 +183,76 @@ export const Reports: React.FC = () => {
       };
     });
   }, [periodStudents, periodPayments]);
+
+  const temporalStats = useMemo(() => {
+    const groups: Record<string, { registrations: number; revenue: number; sortKey: number }> = {};
+
+    const getStartOfWeek = (date: Date) => {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+      const monday = new Date(d.setDate(diff));
+      monday.setHours(0, 0, 0, 0);
+      return monday;
+    };
+
+    const getStartOfMonth = (date: Date) => {
+      return new Date(date.getFullYear(), date.getMonth(), 1);
+    };
+
+    // Group students
+    periodStudents.forEach(s => {
+      const date = new Date(s.enrollmentDate);
+      let key = "";
+      let sortKey = 0;
+      if (temporalGrouping === "week") {
+        const monday = getStartOfWeek(date);
+        key = `Semaine du ${monday.toLocaleDateString("fr-FR")}`;
+        sortKey = monday.getTime();
+      } else {
+        const firstOfMonth = getStartOfMonth(date);
+        key = date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+        key = key.charAt(0).toUpperCase() + key.slice(1);
+        sortKey = firstOfMonth.getTime();
+      }
+
+      if (!groups[key]) {
+        groups[key] = { registrations: 0, revenue: 0, sortKey };
+      }
+      groups[key].registrations += 1;
+    });
+
+    // Group payments
+    periodPayments.forEach(p => {
+      const date = new Date(p.date);
+      let key = "";
+      let sortKey = 0;
+      if (temporalGrouping === "week") {
+        const monday = getStartOfWeek(date);
+        key = `Semaine du ${monday.toLocaleDateString("fr-FR")}`;
+        sortKey = monday.getTime();
+      } else {
+        const firstOfMonth = getStartOfMonth(date);
+        key = date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+        key = key.charAt(0).toUpperCase() + key.slice(1);
+        sortKey = firstOfMonth.getTime();
+      }
+
+      if (!groups[key]) {
+        groups[key] = { registrations: 0, revenue: 0, sortKey };
+      }
+      groups[key].revenue += p.amount;
+    });
+
+    return Object.entries(groups)
+      .map(([label, data]) => ({
+        label,
+        registrations: data.registrations,
+        revenue: data.revenue,
+        sortKey: data.sortKey
+      }))
+      .sort((a, b) => a.sortKey - b.sortKey);
+  }, [periodStudents, periodPayments, temporalGrouping]);
 
   // jsPDF printable Report generator
   const handleExportPDF = () => {
@@ -577,6 +648,98 @@ export const Reports: React.FC = () => {
           </div>
           <p className="text-2xl font-bold text-red-650 font-mono">{outstandingDebt.toLocaleString()} FCFA</p>
           <p className="text-[10px] text-slate-400 mt-1">Crédits restants à recouvrer</p>
+        </div>
+      </div>
+
+      {/* Temporal Breakdown Analytics */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+            📈 Bilan Temporel & Évolution
+          </h3>
+          <div className="flex items-center gap-1.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setTemporalGrouping("week")}
+              className={`px-3 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                temporalGrouping === "week"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-slate-550 hover:text-slate-700"
+              }`}
+            >
+              Par Semaine
+            </button>
+            <button
+              onClick={() => setTemporalGrouping("month")}
+              className={`px-3 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                temporalGrouping === "month"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-slate-550 hover:text-slate-700"
+              }`}
+            >
+              Par Mois
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-12 items-start">
+          {/* Table */}
+          <div className="md:col-span-6 overflow-hidden border border-slate-100 rounded-xl">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                  <th className="p-3">Période</th>
+                  <th className="p-3 text-center">Inscriptions</th>
+                  <th className="p-3 text-right">Recettes (FCFA)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                {temporalStats.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="p-4 text-center text-slate-400 italic">Aucune donnée sur cette période</td>
+                  </tr>
+                ) : (
+                  temporalStats.map(stat => (
+                    <tr key={stat.label} className="hover:bg-slate-50/50">
+                      <td className="p-3 font-semibold text-slate-800">{stat.label}</td>
+                      <td className="p-3 text-center text-blue-600 font-bold">+{stat.registrations}</td>
+                      <td className="p-3 text-right font-mono text-emerald-600 font-bold">{stat.revenue.toLocaleString()} FCFA</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Simple Visual chart */}
+          <div className="md:col-span-6 space-y-4 bg-slate-50/40 p-4 rounded-xl border border-slate-100">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Aperçu Visuel des Recettes</h4>
+            <div className="space-y-3.5">
+              {temporalStats.length === 0 ? (
+                <p className="text-xs text-slate-400 italic text-center py-6">Aucun graphique disponible</p>
+              ) : (
+                (() => {
+                  const maxRevenue = Math.max(...temporalStats.map(s => s.revenue), 1);
+                  return temporalStats.map(stat => {
+                    const ratio = stat.revenue / maxRevenue;
+                    return (
+                      <div key={stat.label} className="space-y-1">
+                        <div className="flex justify-between text-[11px] font-semibold text-slate-700">
+                          <span>{stat.label}</span>
+                          <span className="font-mono text-blue-600">{stat.revenue.toLocaleString()} F</span>
+                        </div>
+                        <div className="w-full bg-slate-150 h-2.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-blue-650 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${ratio * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

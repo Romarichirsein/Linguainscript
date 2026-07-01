@@ -82,7 +82,90 @@ export function SaaSManagement() {
   };
 
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<"dashboard" | "actions" | "help" | "plans" | "notifications">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "actions" | "help" | "plans" | "notifications" | "stats">("dashboard");
+
+  // Temporal Statistics states
+  const [statsSchoolId, setStatsSchoolId] = useState<string>("all");
+  const [statsGrouping, setStatsGrouping] = useState<"week" | "month">("week");
+
+  const sTemporalStats = React.useMemo(() => {
+    const groups: Record<string, { registrations: number; revenue: number; sortKey: number }> = {};
+
+    const getStartOfWeek = (date: Date) => {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+      const monday = new Date(d.setDate(diff));
+      monday.setHours(0, 0, 0, 0);
+      return monday;
+    };
+
+    const getStartOfMonth = (date: Date) => {
+      return new Date(date.getFullYear(), date.getMonth(), 1);
+    };
+
+    // Filter raw lists
+    const filteredStudents = statsSchoolId === "all"
+      ? rawStudents
+      : rawStudents.filter(s => s.schoolId === statsSchoolId || (s as any).schoolId === statsSchoolId);
+
+    const filteredPayments = statsSchoolId === "all"
+      ? rawPayments
+      : rawPayments.filter(p => p.schoolId === statsSchoolId || (p as any).schoolId === statsSchoolId);
+
+    // Group students
+    filteredStudents.forEach(s => {
+      const date = new Date(s.enrollmentDate);
+      let key = "";
+      let sortKey = 0;
+      if (statsGrouping === "week") {
+        const monday = getStartOfWeek(date);
+        key = `Semaine du ${monday.toLocaleDateString("fr-FR")}`;
+        sortKey = monday.getTime();
+      } else {
+        const firstOfMonth = getStartOfMonth(date);
+        key = date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+        key = key.charAt(0).toUpperCase() + key.slice(1);
+        sortKey = firstOfMonth.getTime();
+      }
+
+      if (!groups[key]) {
+        groups[key] = { registrations: 0, revenue: 0, sortKey };
+      }
+      groups[key].registrations += 1;
+    });
+
+    // Group payments
+    filteredPayments.forEach(p => {
+      const date = new Date(p.date);
+      let key = "";
+      let sortKey = 0;
+      if (statsGrouping === "week") {
+        const monday = getStartOfWeek(date);
+        key = `Semaine du ${monday.toLocaleDateString("fr-FR")}`;
+        sortKey = monday.getTime();
+      } else {
+        const firstOfMonth = getStartOfMonth(date);
+        key = date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+        key = key.charAt(0).toUpperCase() + key.slice(1);
+        sortKey = firstOfMonth.getTime();
+      }
+
+      if (!groups[key]) {
+        groups[key] = { registrations: 0, revenue: 0, sortKey };
+      }
+      groups[key].revenue += p.amount;
+    });
+
+    return Object.entries(groups)
+      .map(([label, data]) => ({
+        label,
+        registrations: data.registrations,
+        revenue: data.revenue,
+        sortKey: data.sortKey
+      }))
+      .sort((a, b) => a.sortKey - b.sortKey);
+  }, [rawStudents, rawPayments, statsSchoolId, statsGrouping]);
 
   const pendingRequestsCount = (systemNotifications || []).filter(
     n => n.type === "renewal_request" && n.status === "pending"
@@ -386,6 +469,17 @@ export function SaaSManagement() {
                 {pendingRequestsCount}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setActiveTab("stats")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer ${
+              activeTab === "stats" 
+                ? "bg-white text-slate-800 shadow-xs" 
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <TrendingUp className="h-3.5 w-3.5 inline mr-1.5" />
+            Statistiques Temporelles
           </button>
         </div>
       </div>
@@ -1361,6 +1455,126 @@ export function SaaSManagement() {
                         </div>
                       </div>
                     ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 6: TEMPORAL STATS (SUPER ADMIN) */}
+      {activeTab === "stats" && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="font-sans text-sm font-bold text-slate-800 flex items-center">
+                  <TrendingUp className="mr-2 h-4 w-4 text-emerald-600" />
+                  Statistiques Temporelles Consolidées
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Suivi des nouvelles inscriptions et recettes générées, filtrable par centre de langues.
+                </p>
+              </div>
+
+              {/* Filter controls */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">École :</label>
+                  <select
+                    value={statsSchoolId}
+                    onChange={e => setStatsSchoolId(e.target.value)}
+                    className="rounded-xl border border-slate-200 p-2 bg-white text-xs text-slate-850"
+                  >
+                    <option value="all">Tous les centres</option>
+                    {schools.map(sch => (
+                      <option key={sch.id} value={sch.id}>{sch.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                  <button
+                    onClick={() => setStatsGrouping("week")}
+                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                      statsGrouping === "week"
+                        ? "bg-white text-blue-600 shadow-sm"
+                        : "text-slate-550 hover:text-slate-700"
+                    }`}
+                  >
+                    Par Semaine
+                  </button>
+                  <button
+                    onClick={() => setStatsGrouping("month")}
+                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                      statsGrouping === "month"
+                        ? "bg-white text-blue-600 shadow-sm"
+                        : "text-slate-550 hover:text-slate-700"
+                    }`}
+                  >
+                    Par Mois
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-12 items-start">
+              {/* Table list */}
+              <div className="md:col-span-6 overflow-hidden border border-slate-100 rounded-xl">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                      <th className="p-3">Période</th>
+                      <th className="p-3 text-center">Nouveaux Élèves</th>
+                      <th className="p-3 text-right">Encaissements (FCFA)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                    {sTemporalStats.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-5 text-center text-slate-400 italic">Aucune donnée disponible</td>
+                      </tr>
+                    ) : (
+                      sTemporalStats.map(stat => (
+                        <tr key={stat.label} className="hover:bg-slate-50/50">
+                          <td className="p-3 font-semibold text-slate-800">{stat.label}</td>
+                          <td className="p-3 text-center text-blue-600 font-bold">+{stat.registrations}</td>
+                          <td className="p-3 text-right font-mono text-emerald-600 font-bold">{stat.revenue.toLocaleString()} FCFA</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Progress bars visual graph */}
+              <div className="md:col-span-6 space-y-4 bg-slate-50/40 p-5 rounded-xl border border-slate-100">
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Évolution Graphique des Flux Financiers</h4>
+                <div className="space-y-4">
+                  {sTemporalStats.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-8">Aucun flux enregistré pour ces filtres</p>
+                  ) : (
+                    (() => {
+                      const maxRevenue = Math.max(...sTemporalStats.map(s => s.revenue), 1);
+                      return sTemporalStats.map(stat => {
+                        const ratio = stat.revenue / maxRevenue;
+                        return (
+                          <div key={stat.label} className="space-y-1">
+                            <div className="flex justify-between text-[11px] font-semibold text-slate-700">
+                              <span>{stat.label}</span>
+                              <span className="font-mono text-blue-650">{stat.revenue.toLocaleString()} FCFA</span>
+                            </div>
+                            <div className="w-full bg-slate-150 h-2.5 rounded-full overflow-hidden">
+                              <div
+                                className="bg-emerald-600 h-full rounded-full transition-all duration-500"
+                                style={{ width: `${ratio * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()
                   )}
                 </div>
               </div>

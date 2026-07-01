@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useData } from "../context/DataContext";
-import { Student } from "../types";
+import { Student, UserRole } from "../types";
 import {
   ArrowLeft,
   Calendar,
@@ -34,7 +34,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
   onBack,
   setCurrentTab
 }) => {
-  const { students, classes, campuses, teachers, payments, auditLogs, addPayment, renewStudent, schoolConfig, updateStudent, reminders, addReminder, currentPlan } = useData();
+  const { students, classes, campuses, teachers, payments, auditLogs, addPayment, renewStudent, schoolConfig, updateStudent, reminders, addReminder, currentPlan, deleteStudent, currentUser } = useData();
 
   const [activeSubTab, setActiveSubTab] = useState<"payments" | "history" | "reminders">("payments");
   const [sortAsc, setSortAsc] = useState<boolean>(true);
@@ -657,6 +657,36 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
               )}
             </div>
           </div>
+
+          {/* Zone de Danger (Suppression) */}
+          {(currentUser?.role === UserRole.SUPERADMIN || currentUser?.role === UserRole.DIRECTRICE) && student && (
+            <div className="rounded-2xl border border-red-200 bg-red-50/20 p-5 shadow-sm space-y-3">
+              <h4 className="text-xs font-bold text-red-700 uppercase tracking-wide flex items-center gap-1.5 border-b border-red-100 pb-2">
+                ⚠️ Zone de danger
+              </h4>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Supprimer définitivement cet élève de la base de données. Cette opération est irréversible, supprimera le dossier et libérera sa place dans sa classe.
+              </p>
+              <button
+                onClick={async () => {
+                  if (confirm(`⚠️ ATTENTION : Voulez-vous vraiment supprimer définitivement l'élève ${student.firstName} ${student.lastName} ?`)) {
+                    if (confirm(`Cette action va décrémenter les effectifs de sa classe et supprimer son dossier de manière permanente de la base de données Firestore. Confirmer la suppression ?`)) {
+                      try {
+                        await deleteStudent(student.id);
+                        alert("L'élève a été supprimé définitivement.");
+                        onBack();
+                      } catch (err: any) {
+                        alert(`Échec de la suppression : ${err?.message || err}`);
+                      }
+                    }
+                  }
+                }}
+                className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl font-bold text-xs cursor-pointer transition shadow"
+              >
+                Supprimer le dossier de l'élève
+              </button>
+            </div>
+          )}
         </div>
 
         {/* RIGHT COLUMN: Statement of Accounts, Ledger, Payments or History Tabs */}
