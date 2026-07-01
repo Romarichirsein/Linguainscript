@@ -28,6 +28,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 
 export function SaaSManagement() {
   const { 
+    currentUser,
     schools, 
     activeSchoolId, 
     setActiveSchoolId, 
@@ -49,6 +50,20 @@ export function SaaSManagement() {
     updateSystemNotification,
     approveSchoolRenewal
   } = useData();
+
+  if (currentUser?.role !== UserRole.SUPERADMIN) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] p-6 text-center space-y-4">
+        <div className="p-3 bg-rose-50 text-rose-600 rounded-full border border-rose-100/50">
+          <AlertCircle className="h-8 w-8" />
+        </div>
+        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Accès Privé</h3>
+        <p className="text-xs text-slate-450 max-w-sm">
+          Cette section contient des informations et des actions d'administration globale SaaS privées.
+        </p>
+      </div>
+    );
+  }
 
   const handleDownloadBackup = () => {
     try {

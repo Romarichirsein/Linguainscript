@@ -508,6 +508,9 @@ function DashboardContainer() {
 
     switch (currentTab) {
       case "saas":
+        if (currentUser?.role !== "superadmin") {
+          return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
+        }
         return <SaaSManagement />;
 
       case "dashboard":
