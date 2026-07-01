@@ -246,7 +246,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // This prevents onAuthStateChanged from overriding manually set mock users
   // NOTE: We only restore the local session flag from localStorage if it was set by an EXPLICIT demo login.
   // Transient network errors should NOT permanently lock the app in offline mode across reloads.
-  const isLocalSession = useRef(localStorage.getItem("lingua_isDemoLogin") === "true");
+  const [isLocalSession, setIsLocalSession] = useState(localStorage.getItem("lingua_isDemoLogin") === "true");
 
   useEffect(() => {
     try {
@@ -313,7 +313,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const testConnection = async () => {
       // Skip connection test in local session mode
-      if (isLocalSession.current) return;
+      if (isLocalSession) return;
       try {
         // Race against a 6s timeout to tolerate slow mobile/network connections
         const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Connection test timeout")), 6000));
@@ -327,7 +327,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       // If we're in an explicit local/demo session, skip database queries and keep the loaded local profile
-      if (isLocalSession.current) {
+      if (isLocalSession) {
         setFirebaseUser(user);
         setLoading(false);
         return;
@@ -449,7 +449,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // Temporary fallback: set local mode for this session only (NOT persisted to localStorage)
           // This allows the next page reload to try Firestore again.
-          isLocalSession.current = true;
+          setIsLocalSession(true);
 
           // Determine profile based on email address
           const cleanEmail = user.email?.trim().toLowerCase() || "";
@@ -500,7 +500,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => unsubscribeAuth();
-  }, []);
+  }, [isLocalSession]);
 
   // Multi-tenant active school resolution
   useEffect(() => {
@@ -570,7 +570,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // LOCAL SESSION: seed schools & users from mock data directly into state
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       console.log("[Local Session] Loading default schools and mock users into local state.");
       setSchools(getDefaultSchools());
       setAllUsers(mockUsers.map(u => ({ ...u, schoolId: u.schoolId || "school_demo" })));
@@ -606,7 +606,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubSchools();
       unsubUsers();
     };
-  }, [firebaseUser]);
+  }, [firebaseUser, isLocalSession]);
 
   // Helper: build a default SchoolConfig for a given school ID
   const getDefaultSchoolConfig = (schoolId: string): SchoolConfig => ({
@@ -642,7 +642,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // LOCAL SESSION: load all mock data directly into state, skip Firestore listeners
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       console.log("[Local Session] Loading mock data into local state (Firestore bypassed).");
       const currentSchoolId = activeSchoolId || "school_demo";
       setRawCampuses(mockCampuses.map(c => ({ ...c, schoolId: currentSchoolId } as any)));
@@ -759,7 +759,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubReminders();
       unsubSchoolConfig();
     };
-  }, [firebaseUser, activeSchoolId]);
+  }, [firebaseUser, activeSchoolId, isLocalSession]);
 
   // Seeder helper
   const doDatabaseSeed = async () => {
@@ -1011,6 +1011,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithPassword = async (email: string, password: string) => {
     setLoading(true);
+    
+    // Explicit login: quit demo mode completely
+    localStorage.removeItem("lingua_isDemoLogin");
+    localStorage.removeItem("lingua_isLocalSession");
+    setIsLocalSession(false);
+
     const cleanEmail = email.trim().toLowerCase();
 
     try {
@@ -1103,7 +1109,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
         // Mark this as a local session so onAuthStateChanged won't override our mock user
         // Do NOT use lingua_isLocalSession to persist this — it's a transient auth issue.
-        isLocalSession.current = true;
+        setIsLocalSession(true);
         localStorage.setItem("lingua_isDemoLogin", "true");
       }
 
@@ -1122,7 +1128,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       // Only write to Firestore if we have a real Firebase session (not local/demo)
-      if (!isLocalSession.current) {
+      if (!isLocalSession) {
         try {
           const writeTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore write timeout")), 5000));
           await Promise.race([setDoc(doc(db, "users", firebaseUid), updatedProfile), writeTimeout]);
@@ -1144,7 +1150,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginAsDemoUser = async (email: string, name: string, role: UserRole, schoolId: string | null) => {
     setLoading(true);
-    isLocalSession.current = true;
+    setIsLocalSession(true);
     // Explicit demo login: persist this flag so reloads stay in demo mode
     localStorage.setItem("lingua_isDemoLogin", "true");
     const mockUid = `demo_${role}_${Date.now()}`;
@@ -1175,7 +1181,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     // Clear all session flags so onAuthStateChanged can work normally on next login
-    isLocalSession.current = false;
+    setIsLocalSession(false);
     localStorage.removeItem("lingua_isDemoLogin");
     localStorage.removeItem("lingua_isLocalSession"); // Legacy cleanup
     localStorage.removeItem("lingua_firebaseUser");
@@ -1340,7 +1346,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         schoolId: activeSchoolId || "school_demo"
       } as any;
 
-      if (isLocalSession.current) {
+      if (isLocalSession) {
         // Demo mode: update local state only
         setRawWaitlist(prev => [...prev, newWaitlistEntry]);
         return { success: true, waitlistId, message: `L'élève "${newWaitlistEntry.studentName}" a été ajouté en liste d'attente (Mode Démo, Position ${position}).` };
@@ -1381,7 +1387,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } as any;
 
     // DEMO MODE: update local state only, no Firestore write
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       const demoStudent = { ...newStudent, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       setRawStudents(prev => [...prev, demoStudent]);
       setRawClasses(prev => prev.map(c => c.id === selectedClass.id ? { ...c, currentCount: c.currentCount + 1 } : c));
@@ -1538,7 +1544,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const student = rawStudents.find(s => s.id === studentId);
     if (!student) return;
 
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       setRawStudents(prev => prev.filter(s => s.id !== studentId));
       if (student.classId) {
         setRawClasses(prev => prev.map(c => c.id === student.classId ? { ...c, currentCount: Math.max(0, c.currentCount - 1) } : c));
@@ -1676,7 +1682,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString(),
       schoolId: activeSchoolId || "school_demo"
     } as any;
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       setRawCampuses(prev => [...prev, newCampus as any]);
       return;
     }
@@ -1690,7 +1696,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateCampus = async (id: string, name: string, address: string, isActive: boolean) => {
     checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Modification d'un campus");
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       setRawCampuses(prev => prev.map(c => c.id === id ? { ...c, name, address, isActive } as Campus : c));
       return;
     }
@@ -1739,7 +1745,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isActive: true,
       schoolId: activeSchoolId || "school_demo"
     } as any;
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       setRawTeachers(prev => [...prev, newTeacher as any]);
       return;
     }
@@ -1761,7 +1767,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isActive: true,
       schoolId: activeSchoolId || "school_demo"
     } as any;
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       setRawClasses(prev => [...prev, newClass as any]);
       return;
     }
@@ -1775,7 +1781,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateClass = async (id: string, updated: ClassUpdate) => {
     checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE, UserRole.SECRETAIRE], "Modification d'une classe");
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       setRawClasses(prev => prev.map(c => c.id === id ? { ...c, ...updated } as Class : c));
       return;
     }
@@ -2032,7 +2038,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       };
       // For local session, update state directly since Firestore setDoc is simulated/bypassed
-      if (isLocalSession.current) {
+      if (isLocalSession) {
         setSchoolConfig(prev => prev ? { ...prev, ...mergedConfig } : (mergedConfig as any));
       }
       await setDoc(configRef, mergedConfig, { merge: true });
@@ -2216,7 +2222,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       read: false
     };
 
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       setSystemNotifications(prev => [newNotif, ...prev]);
       return;
     }
@@ -2230,7 +2236,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateSystemNotification = async (id: string, updates: Partial<SystemNotification>) => {
-    if (isLocalSession.current) {
+    if (isLocalSession) {
       setSystemNotifications(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
       return;
     }
@@ -2283,7 +2289,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         firebaseUser,
         loading,
-        isLocalSession: isLocalSession.current,
+        isLocalSession,
         loginWithGoogle,
         loginWithPassword,
         loginAsDemoUser,
