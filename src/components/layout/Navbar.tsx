@@ -111,7 +111,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Demo Controller Widget */}
-        {isLocalSession && (
+        {isLocalSession && currentUser?.role !== UserRole.SUPERADMIN && availableUsers.length > 0 && (
           <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
             <span className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
               <Shield className="h-3 w-3 text-blue-600" /> Profil :

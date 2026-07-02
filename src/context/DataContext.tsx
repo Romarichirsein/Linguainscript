@@ -2283,6 +2283,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const availableUsers = useMemo(() => {
+    const currentSchoolId = activeSchoolId || "school_demo";
+    return allUsers.filter(
+      u => (u.schoolId === currentSchoolId || (u as any).schoolId === currentSchoolId) &&
+           (u.role === UserRole.DIRECTRICE || u.role === UserRole.SECRETAIRE)
+    );
+  }, [allUsers, activeSchoolId]);
+
   return (
     <DataContext.Provider
       value={{
@@ -2294,7 +2302,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithPassword,
         loginAsDemoUser,
         logout,
-        availableUsers: mockUsers,
+        availableUsers,
         allUsers,
         switchUser,
         campuses,

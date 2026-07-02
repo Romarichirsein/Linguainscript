@@ -704,6 +704,7 @@ export function SaaSManagement() {
                 <tbody className="divide-y divide-slate-100">
                   {schools.map((school) => {
                     const studentCount = rawStudents.filter((item: any) => item.schoolId === school.id).length;
+                    const secretaryCount = allUsers.filter((item: any) => item.schoolId === school.id && item.role === UserRole.SECRETAIRE).length;
                     const isSimulationNow = activeSchoolId === school.id;
                     const isExpired = new Date(school.subExpiresAt) < new Date();
 
@@ -712,7 +713,7 @@ export function SaaSManagement() {
                         <td className="py-3">
                           <span className="font-sans font-bold text-slate-800 block text-xs">{school.name}</span>
                           <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
-                            ID: <strong className="text-slate-600">{school.id}</strong> · {studentCount} élève{studentCount > 1 ? 's' : ''} enregistré{studentCount > 1 ? 's' : ''}
+                            ID: <strong className="text-slate-600">{school.id}</strong> · {studentCount} élève{studentCount > 1 ? 's' : ''} · {secretaryCount} secrétaire{secretaryCount > 1 ? 's' : ''}
                           </span>
                         </td>
                         <td className="py-3">
