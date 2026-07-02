@@ -244,7 +244,7 @@ function LoginScreen() {
                   >
                     <AlertCircle className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
                     <div>
-                      Par mesure de sécurité administrative, seul le <strong>Super Administrateur SaaS</strong> (romarichirsein@gmail.com) possède l'habilitation pour valider ou réinitialiser votre compte d'accès. Rapprochez-vous de la direction.
+                      Par mesure de sécurité administrative, seul le <strong>Super Administrateur SaaS</strong> (superadmin@linguainscript.com) possède l'habilitation pour valider ou réinitialiser votre compte d'accès. Rapprochez-vous de la direction.
                     </div>
                   </motion.div>
                 )}
@@ -305,7 +305,7 @@ function LoginScreen() {
                 <div className="grid grid-cols-1 gap-2.5">
                   {/* Super Admin */}
                   <button
-                    onClick={() => fillCredentialsPreset("romarichirsein@gmail.com", "admin123")}
+                    onClick={() => fillCredentialsPreset("superadmin@linguainscript.com", "admin123")}
                     type="button"
                     className="group relative flex items-start gap-3 rounded-xl bg-indigo-950/20 border border-indigo-500/10 hover:border-indigo-400/40 hover:bg-indigo-950/40 p-2.5 text-left transition-all duration-300 cursor-pointer"
                   >
@@ -317,7 +317,7 @@ function LoginScreen() {
                         <span className="font-sans font-bold text-xs text-white">Super Administrateur</span>
                         <span className="text-[8px] font-mono px-1 rounded-sm bg-indigo-500/20 text-indigo-300 tracking-wide">Global SaaS</span>
                       </div>
-                      <p className="text-[9px] text-indigo-200/70 mt-0.5">romarichirsein@gmail.com · <span className="font-mono text-[8px]">admin123</span></p>
+                      <p className="text-[9px] text-indigo-200/70 mt-0.5">superadmin@linguainscript.com · <span className="font-mono text-[8px]">admin123</span></p>
                       <p className="text-[8px] text-slate-400 mt-1 italic font-mono leading-none">Contrôle complet de la plateforme, écoles, abonnements.</p>
                     </div>
                   </button>

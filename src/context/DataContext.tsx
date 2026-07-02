@@ -350,7 +350,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               throw netErr; // Rethrow network error to trigger the main fallback
             }
           }
-          const isSuperAdminEmail = user.email === "romarichirsein@gmail.com";
+          const isSuperAdminEmail = user.email === "superadmin@linguainscript.com";
 
           if (snapshot.exists()) {
             const data = snapshot.data() as UserProfile;
@@ -454,10 +454,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Determine profile based on email address
           const cleanEmail = user.email?.trim().toLowerCase() || "";
           let fallbackProfile: UserProfile;
-          if (cleanEmail === "romarichirsein@gmail.com") {
+          if (cleanEmail === "superadmin@linguainscript.com") {
             fallbackProfile = {
               id: "superadmin_romaric",
-              name: "Romaric Hirsein (Super Admin)",
+              name: "Super Administrateur SaaS",
               email: cleanEmail,
               role: UserRole.SUPERADMIN,
               campusId: null,
@@ -662,7 +662,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRawCampuses(items);
       
       // Seed if empty, only if the user is the Super Admin (avoids multiple writes by tenant managers)
-      if (items.length === 0 && auth.currentUser?.email === "romarichirsein@gmail.com") {
+      if (items.length === 0 && auth.currentUser?.email === "superadmin@linguainscript.com") {
         console.log("Database is empty. Seeding mock standard data...");
         await doDatabaseSeed();
       }
@@ -1024,11 +1024,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let resolvedProfile: UserProfile | null = null;
       let storedPassword = "";
 
-      if (cleanEmail === "romarichirsein@gmail.com" && password === "admin123") {
+      if (cleanEmail === "superadmin@linguainscript.com" && password === "admin123") {
         storedPassword = "admin123";
         resolvedProfile = {
           id: "superadmin_romaric",
-          name: "Romaric Hirsein (Super Admin)",
+          name: "Super Administrateur SaaS",
           email: cleanEmail,
           role: UserRole.SUPERADMIN,
           campusId: null,
