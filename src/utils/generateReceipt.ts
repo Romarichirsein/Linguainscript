@@ -1,6 +1,11 @@
 import { jsPDF } from "jspdf";
 import { Student, Payment, Class, Campus, SchoolConfig } from "../types";
 
+/** Format a number with dot as thousands separator (e.g. 180000 → 180.000) */
+function formatFCFA(amount: number): string {
+  return amount.toLocaleString("fr-FR").replace(/\s/g, ".") + " FCFA";
+}
+
 export function generateReceipt(
   student: Student,
   payment: Payment,
@@ -27,6 +32,19 @@ export function generateReceipt(
     const primaryColor = themeColorMap[schoolConfig?.themeColor || "blue"];
     const textColor = [30, 41, 59]; // Slate 800
     const mutedColor = [100, 116, 139]; // Slate 500
+
+    // ── WATERMARK: school logo centered, low opacity ──
+    if (schoolConfig?.logoUrl) {
+      try {
+        // Draw logo as a large centered watermark behind everything
+        doc.saveGraphicsState();
+        (doc as any).setGState(new (doc as any).GState({ opacity: 0.06 }));
+        doc.addImage(schoolConfig.logoUrl, "JPEG", 30, 55, 88, 88);
+        doc.restoreGraphicsState();
+      } catch (_) {
+        // Silently skip watermark if image fails to load
+      }
+    }
 
     // Frame Border
     doc.setDrawColor(226, 232, 240);
@@ -154,7 +172,7 @@ export function generateReceipt(
     doc.text(desc.length > 35 ? desc.substring(0, 35) + "..." : desc, 14, 125);
     doc.text(payment.mode, 70, 125);
     doc.setFont("Helvetica", "bold");
-    doc.text(`${payment.amount.toLocaleString()} FCFA`, 134, 125, { align: "right" });
+    doc.text(formatFCFA(payment.amount), 134, 125, { align: "right" });
 
     doc.setDrawColor(241, 245, 249);
     doc.line(10, 129, 138, 129);
@@ -163,11 +181,11 @@ export function generateReceipt(
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(9);
     doc.text("Frais de scolarité totaux :", 80, 137, { align: "right" });
-    doc.text(`${student.totalAmount.toLocaleString()} FCFA`, 134, 137, { align: "right" });
+    doc.text(formatFCFA(student.totalAmount), 134, 137, { align: "right" });
 
     doc.text("Total réglé à ce jour :", 80, 143, { align: "right" });
     doc.setTextColor(16, 185, 129); // Green text for paid
-    doc.text(`${student.paidAmount.toLocaleString()} FCFA`, 134, 143, { align: "right" });
+    doc.text(formatFCFA(student.paidAmount), 134, 143, { align: "right" });
 
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(30, 41, 59);
@@ -175,7 +193,7 @@ export function generateReceipt(
     if (student.balance > 0) {
       doc.setTextColor(239, 68, 68); // Red text for balance
     }
-    doc.text(`${student.balance.toLocaleString()} FCFA`, 134, 150, { align: "right" });
+    doc.text(formatFCFA(student.balance), 134, 150, { align: "right" });
 
     // Expiration Details
     doc.setDrawColor(241, 245, 249);

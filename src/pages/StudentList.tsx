@@ -13,7 +13,9 @@ import {
   AlertTriangle,
   UserCheck,
   CheckCircle2,
-  UploadCloud
+  UploadCloud,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { generateReceipt } from "../utils/generateReceipt";
 import { StudentSheetsImport } from "../components/StudentSheetsImport";
@@ -29,7 +31,7 @@ export const StudentList: React.FC<StudentListProps> = ({
   selectedStudentId,
   setSelectedStudentId
 }) => {
-  const { students, classes, campuses, teachers, payments, addPayment, currentUser, currentSchool, currentPlan, uniqueLanguages } = useData();
+  const { students, classes, campuses, teachers, payments, addPayment, updateStudent, deleteStudent, currentUser, currentSchool, currentPlan, uniqueLanguages, schoolConfig } = useData();
 
   // Component states
   const [searchQuery, setSearchQuery] = useState("");
@@ -51,6 +53,18 @@ export const StudentList: React.FC<StudentListProps> = ({
   const [payAmount, setPayAmount] = useState("");
   const [payMode, setPayMode] = useState<"Espèces" | "Mobile Money" | "Virement">("Espèces");
   const [payNote, setPayNote] = useState("");
+
+  // Edit/Delete modal state
+  const [editModalStudent, setEditModalStudent] = useState<Student | null>(null);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editParentName, setEditParentName] = useState("");
+  const [editParentPhone, setEditParentPhone] = useState("");
+  const [editClassId, setEditClassId] = useState("");
+  const [editStatus, setEditStatus] = useState<Student["status"]>("actif");
+  const [editSaving, setEditSaving] = useState(false);
 
   const isDirectrice = currentUser?.role === "directrice";
   const userCampusId = currentUser?.campusId;
@@ -228,7 +242,51 @@ export const StudentList: React.FC<StudentListProps> = ({
     const studClass = classes.find(c => c.id === stud.classId);
     const studCampus = campuses.find(c => c.id === stud.campusId);
 
-    generateReceipt(stud, latestPayment, studClass, studCampus);
+    generateReceipt(stud, latestPayment, studClass, studCampus, schoolConfig);
+  };
+
+  const handleOpenEdit = (stud: Student) => {
+    setEditModalStudent(stud);
+    setEditFirstName(stud.firstName);
+    setEditLastName(stud.lastName);
+    setEditPhone(stud.phone);
+    setEditEmail(stud.email || "");
+    setEditParentName(stud.parentName);
+    setEditParentPhone(stud.parentPhone);
+    setEditClassId(stud.classId);
+    setEditStatus(stud.status);
+  };
+
+  const submitEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editModalStudent) return;
+    setEditSaving(true);
+    try {
+      await updateStudent(editModalStudent.id, {
+        firstName: editFirstName.trim(),
+        lastName: editLastName.trim(),
+        phone: editPhone.trim(),
+        email: editEmail.trim(),
+        parentName: editParentName.trim(),
+        parentPhone: editParentPhone.trim(),
+        classId: editClassId,
+        status: editStatus
+      });
+      setEditModalStudent(null);
+    } catch (err: any) {
+      alert(err?.message || "Erreur lors de la mise à jour.");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteStudent = async (stud: Student) => {
+    if (!window.confirm(`Supprimer définitivement l'élève "${stud.firstName} ${stud.lastName}" ? Cette action est irréversible.`)) return;
+    try {
+      await deleteStudent(stud.id);
+    } catch (err: any) {
+      alert(err?.message || "Erreur lors de la suppression.");
+    }
   };
 
   const handleOpenFastPayment = (stud: Student) => {
@@ -692,12 +750,21 @@ export const StudentList: React.FC<StudentListProps> = ({
                           <button
                             onClick={() => {
                               setSelectedStudentId(student.id);
-                              setCurrentTab("students"); // This Tab acts as details view when ID is selected
+                              setCurrentTab("students");
                             }}
                             title="Fiche & Suivi"
                             className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors cursor-pointer"
                           >
                             <Eye className="h-4 w-4" />
+                          </button>
+
+                          {/* Edit Student */}
+                          <button
+                            onClick={() => handleOpenEdit(student)}
+                            title="Modifier l'élève"
+                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 transition-colors cursor-pointer"
+                          >
+                            <Pencil className="h-4 w-4" />
                           </button>
 
                           {/* Quick Payment register */}
@@ -739,6 +806,17 @@ export const StudentList: React.FC<StudentListProps> = ({
                            >
                              <Printer className="h-4.5 w-4.5" />
                            </button>
+
+                          {/* Delete Student (directrice only) */}
+                          {isDirectrice && (
+                            <button
+                              onClick={() => handleDeleteStudent(student)}
+                              title="Supprimer l'élève"
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -750,6 +828,74 @@ export const StudentList: React.FC<StudentListProps> = ({
         </div>
       </div>
       </>
+      )}
+
+      {/* ── EDIT STUDENT MODAL ── */}
+      {editModalStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-800">
+                Modifier l'élève — {editModalStudent.firstName} {editModalStudent.lastName}
+              </h3>
+              <button onClick={() => setEditModalStudent(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 cursor-pointer">
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+            <form onSubmit={submitEdit} className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-700">
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">Prénom *</label>
+                <input required value={editFirstName} onChange={e => setEditFirstName(e.target.value)} className="rounded-xl border border-slate-200 p-2.5 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">Nom *</label>
+                <input required value={editLastName} onChange={e => setEditLastName(e.target.value)} className="rounded-xl border border-slate-200 p-2.5 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">Téléphone</label>
+                <input value={editPhone} onChange={e => setEditPhone(e.target.value)} className="rounded-xl border border-slate-200 p-2.5 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">E-mail</label>
+                <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className="rounded-xl border border-slate-200 p-2.5 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">Nom du parent</label>
+                <input value={editParentName} onChange={e => setEditParentName(e.target.value)} className="rounded-xl border border-slate-200 p-2.5 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">Tél. parent</label>
+                <input value={editParentPhone} onChange={e => setEditParentPhone(e.target.value)} className="rounded-xl border border-slate-200 p-2.5 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">Cours assigné</label>
+                <select value={editClassId} onChange={e => setEditClassId(e.target.value)} className="rounded-xl border border-slate-200 p-2.5 text-sm bg-white">
+                  {classes.filter(c => c.isActive).map(c => (
+                    <option key={c.id} value={c.id}>{c.language} {c.level} — {c.period}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">Statut</label>
+                <select value={editStatus} onChange={e => setEditStatus(e.target.value as Student["status"])} className="rounded-xl border border-slate-200 p-2.5 text-sm bg-white">
+                  <option value="actif">Actif</option>
+                  <option value="en_attente">En attente</option>
+                  <option value="expiré">Expiré</option>
+                  <option value="terminé">Terminé</option>
+                  <option value="archivé">Archivé</option>
+                </select>
+              </div>
+              <div className="col-span-2 flex gap-2 pt-2">
+                <button type="button" onClick={() => setEditModalStudent(null)} className="flex-1 rounded-xl border border-slate-200 py-2.5 font-bold hover:bg-slate-50 cursor-pointer text-sm">
+                  Annuler
+                </button>
+                <button type="submit" disabled={editSaving} className="flex-1 rounded-xl bg-indigo-600 py-2.5 font-bold text-white hover:bg-indigo-700 shadow shadow-indigo-200 cursor-pointer text-sm disabled:opacity-60">
+                  {editSaving ? "Enregistrement..." : "Enregistrer les modifications"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* QUICK FAST CHARGE POPUP COMPONENT (Modals) */}
