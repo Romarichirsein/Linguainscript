@@ -1035,28 +1035,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           schoolId: null,
           password: "admin123"
         };
-      } else if (cleanEmail === "directrice.integral@gmail.com" && password === "lingua123") {
-        storedPassword = "lingua123";
-        resolvedProfile = {
-          id: "directrice_integral",
-          name: "Thérèse Ngono (Directrice)",
-          email: cleanEmail,
-          role: UserRole.DIRECTRICE,
-          campusId: null,
-          schoolId: "school_integral",
-          password: "lingua123"
-        };
-      } else if (cleanEmail === "secretaire.demo@gmail.com" && password === "lingua123") {
-        storedPassword = "lingua123";
-        resolvedProfile = {
-          id: "secretaire_demo",
-          name: "Sarah Kiman (Secrétaire)",
-          email: cleanEmail,
-          role: UserRole.SECRETAIRE,
-          campusId: "campus_01",
-          schoolId: "school_demo",
-          password: "lingua123"
-        };
       } else {
         // Search for a matching user in Firestore (with timeout to prevent hanging)
         const q = query(collection(db, "users"), where("email", "==", cleanEmail));
@@ -1103,14 +1081,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         firebaseUid = auth.currentUser?.uid || firebaseAuthUser?.uid || resolvedProfile.id;
       } catch (authErr: any) {
-        console.warn(
-          "Firebase Auth email/password method failed (make sure it is enabled in your Firebase console under Authentication -> Sign-in Method). Logging in with a local session instead.",
-          authErr
-        );
-        // Mark this as a local session so onAuthStateChanged won't override our mock user
-        // Do NOT use lingua_isLocalSession to persist this — it's a transient auth issue.
-        setIsLocalSession(true);
-        localStorage.setItem("lingua_isDemoLogin", "true");
+        console.error("Firebase Auth email/password method failed:", authErr);
+        throw new Error("Erreur de connexion sécurisée avec le serveur d'authentification.");
       }
 
       const mockFUser = {

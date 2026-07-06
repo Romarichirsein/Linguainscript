@@ -109,31 +109,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Menu className="h-4 w-4" />
         </button>
-
-        {/* Demo Controller Widget */}
-        {isLocalSession && currentUser?.role !== UserRole.SUPERADMIN && availableUsers.length > 0 && (
-          <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <span className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-              <Shield className="h-3 w-3 text-blue-600" /> Profil :
-            </span>
-            {availableUsers.map(u => {
-              const isActive = currentUser?.id === u.id;
-              return (
-                <button
-                  key={u.id}
-                  onClick={() => switchUser(u.id)}
-                  className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-slate-600 dark:text-slate-350 hover:bg-slate-200 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  {u.name.split(" ")[0]} ({u.role === UserRole.DIRECTRICE ? "Dir." : u.campusId === "campus_01" ? "Centre" : "Nord"})
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* Global Search Bar */}
@@ -279,22 +254,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </button>
 
-        {/* Reset Database Button */}
-        {isLocalSession && (
-          <button
-            onClick={() => {
-              if (window.confirm("Voulez-vous réinitialiser toutes les données de test de LinguaInscript ?")) {
-                resetDatabase();
-                setCurrentTab("dashboard");
-              }
-            }}
-            title="Réinitialiser la Base de Données d'exercice"
-            className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:text-slate-350 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
-          >
-            <RefreshCw className="h-3 w-3 text-slate-450 dark:text-slate-400" />
-            <span className="hidden md:inline">Remise à zéro</span>
-          </button>
-        )}
 
         {/* Notification Bell Dropdown */}
         {currentUser && (

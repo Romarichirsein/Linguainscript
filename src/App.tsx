@@ -92,11 +92,6 @@ function LoginScreen() {
     }
   };
 
-  const fillCredentialsPreset = (mailVal: string, passVal: string) => {
-    setEmail(mailVal);
-    setPassword(passVal);
-    setErrorMsg("");
-  };
 
   return (
     <div className="relative flex min-h-screen w-screen flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white select-none selection:bg-indigo-505/15 overflow-hidden">
@@ -291,76 +286,6 @@ function LoginScreen() {
                 </svg>
                 Authentification Google
               </button>
-
-              {/* Educational RBAC Matrix & Preset block */}
-              <div className="mt-8 pt-5 border-t border-white/10 relative">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-3 bg-slate-950/80 rounded-full border border-white/10 py-0.5 text-[8px] font-mono tracking-widest text-[#a5b4fc] uppercase">
-                  Logique RBAC d'Habilitations
-                </div>
-                
-                <p className="text-center font-sans font-bold text-[10px] text-slate-400 tracking-wider mb-3 mt-1 uppercase">
-                  ⚡ Comptes de Démo (sélectionner pour tester)
-                </p>
-
-                <div className="grid grid-cols-1 gap-2.5">
-                  {/* Super Admin */}
-                  <button
-                    onClick={() => fillCredentialsPreset("superadmin@linguainscript.com", "admin123")}
-                    type="button"
-                    className="group relative flex items-start gap-3 rounded-xl bg-indigo-950/20 border border-indigo-500/10 hover:border-indigo-400/40 hover:bg-indigo-950/40 p-2.5 text-left transition-all duration-300 cursor-pointer"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 group-hover:scale-110 transition-transform">
-                      <Sparkles className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-sans font-bold text-xs text-white">Super Administrateur</span>
-                        <span className="text-[8px] font-mono px-1 rounded-sm bg-indigo-500/20 text-indigo-300 tracking-wide">Global SaaS</span>
-                      </div>
-                      <p className="text-[9px] text-indigo-200/70 mt-0.5">superadmin@linguainscript.com · <span className="font-mono text-[8px]">admin123</span></p>
-                      <p className="text-[8px] text-slate-400 mt-1 italic font-mono leading-none">Contrôle complet de la plateforme, écoles, abonnements.</p>
-                    </div>
-                  </button>
-
-                  {/* Directrice */}
-                  <button
-                    onClick={() => fillCredentialsPreset("directrice.integral@gmail.com", "lingua123")}
-                    type="button"
-                    className="group relative flex items-start gap-3 rounded-xl bg-blue-950/20 border border-blue-500/10 hover:border-blue-400/40 hover:bg-blue-950/44 p-2.5 text-left transition-all duration-300 cursor-pointer"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
-                      <GraduationCap className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-sans font-bold text-xs text-white">Directrice</span>
-                        <span className="text-[8px] font-mono px-1 rounded-sm bg-blue-500/20 text-blue-300 tracking-wide">École</span>
-                      </div>
-                      <p className="text-[9px] text-blue-200/70 mt-0.5">directrice.integral@gmail.com · <span className="font-mono text-[8px]">lingua123</span></p>
-                      <p className="text-[8px] text-slate-400 mt-1 italic font-mono leading-none">Tout droit scolaire (classes, Campus, Personnel) sauf SaaS global.</p>
-                    </div>
-                  </button>
-
-                  {/* Secrétaire */}
-                  <button
-                    onClick={() => fillCredentialsPreset("secretaire.demo@gmail.com", "lingua123")}
-                    type="button"
-                    className="group relative flex items-start gap-3 rounded-xl bg-slate-900/40 border border-white/5 hover:border-slate-400/30 hover:bg-slate-900/80 p-2.5 text-left transition-all duration-300 cursor-pointer"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-500/10 text-slate-400 group-hover:scale-110 transition-transform">
-                      <BookOpen className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-sans font-bold text-xs text-white">Secrétaire</span>
-                        <span className="text-[8px] font-mono px-1 rounded-sm bg-slate-500/20 text-slate-400 tracking-wide">Opérations</span>
-                      </div>
-                      <p className="text-[9px] text-slate-300/70 mt-0.5">secretaire.demo@gmail.com · <span className="font-mono text-[8px]">lingua123</span></p>
-                      <p className="text-[8px] text-slate-400 mt-1 italic font-mono leading-none">Gestion exclusive (élèves, inscriptions, classes, paiements).</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
 
             </div>
 
@@ -608,23 +533,6 @@ function DashboardContainer() {
           setFocusMode={setFocusMode}
         />
 
-        {/* Demo/offline session warning banner */}
-        {isLocalSession && isDemoLogin && (
-          <div className="bg-amber-500 text-slate-950 font-sans text-xs px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md z-10 border-b border-amber-600/30">
-            <div className="flex items-center gap-2">
-              <span className="text-sm shrink-0">🎭</span>
-              <p className="font-semibold leading-relaxed">
-                <strong>Mode Démo :</strong> Vous utilisez une session de démonstration. Les données sont simulées localement et ne seront pas sauvegardées sur le serveur.
-              </p>
-            </div>
-            <button
-              onClick={async () => { await logout(); }}
-              className="bg-slate-950 hover:bg-slate-900 text-white px-3.5 py-1.5 rounded-xl text-[10px] font-bold uppercase transition tracking-wider shrink-0 text-center"
-            >
-              Quitter le mode Démo
-            </button>
-          </div>
-        )}
         {isLocalSession && !isDemoLogin && (
           <div className="bg-red-600 text-white font-sans text-xs px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md z-10 border-b border-red-700/30">
             <div className="flex items-center gap-2">
