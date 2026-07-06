@@ -14,7 +14,18 @@ import {
 import { jsPDF } from "jspdf";
 
 export const Reports: React.FC = () => {
-  const { students, classes, campuses, teachers, payments, auditLogs, schoolConfig, uniqueLanguages } = useData();
+  const { 
+    students, 
+    classes, 
+    campuses, 
+    teachers, 
+    payments, 
+    auditLogs, 
+    schoolConfig, 
+    uniqueLanguages,
+    allUsers,
+    activeSchoolId
+  } = useData();
 
   // Selected period controls
   const [selectedPeriod, setSelectedPeriod] = useState<"week" | "month" | "prevMonth" | "custom">("month");
@@ -164,25 +175,30 @@ export const Reports: React.FC = () => {
 
   // 3. Details by Registrar Secretary (Audit trace)
   const secretaryStats = useMemo(() => {
-    const managers = [
-      { id: "user_sec_01", name: "Sarah Kiman", campus: "Campus Centre-Ville" },
-      { id: "user_sec_02", name: "Marie Diallo", campus: "Campus Nord" }
-    ];
+    const currentSchoolId = activeSchoolId || "school_demo";
+    // Get all directrice and secretary accounts created for this school
+    const staff = allUsers.filter(u => 
+      (u.schoolId === currentSchoolId || (u as any).schoolId === currentSchoolId) &&
+      (u.role === "directrice" || u.role === "secretaire")
+    );
 
-    return managers.map(mgr => {
-      const Inscriptions = periodStudents.filter(s => s.createdBy.userId === mgr.id).length;
-      const recordedPay = periodPayments.filter(p => p.recordedBy.userId === mgr.id);
+    return staff.map(mgr => {
+      // Find campus name if assigned
+      const campusName = campuses.find(c => c.id === mgr.campusId)?.name || (mgr.role === "directrice" ? "Tous les campus (Directrice)" : "Général");
+
+      const Inscriptions = periodStudents.filter(s => s.createdBy?.userId === mgr.id).length;
+      const recordedPay = periodPayments.filter(p => p.recordedBy?.userId === mgr.id);
       const totalSum = recordedPay.reduce((acc, cr) => acc + cr.amount, 0);
 
       return {
-        name: mgr.name,
-        campus: mgr.campus,
+        name: mgr.name + (mgr.role === "directrice" ? " (Directrice)" : ""),
+        campus: campusName,
         registrations: Inscriptions,
         paymentsCount: recordedPay.length,
         revenue: totalSum
       };
     });
-  }, [periodStudents, periodPayments]);
+  }, [periodStudents, periodPayments, allUsers, activeSchoolId, campuses]);
 
   const temporalStats = useMemo(() => {
     const groups: Record<string, { registrations: number; revenue: number; sortKey: number }> = {};
