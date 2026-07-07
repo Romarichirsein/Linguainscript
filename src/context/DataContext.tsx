@@ -978,6 +978,61 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateSchool = async (schoolId: string, updated: Partial<School>) => {
+    checkRoleAccess([UserRole.SUPERADMIN], "Modification d'un établissement SaaS");
+    try {
+      const schoolRef = doc(db, "schools", schoolId);
+      await updateDoc(schoolRef, updated);
+      
+      if (isLocalSession) {
+        setSchools(prev => prev.map(s => s.id === schoolId ? { ...s, ...updated } : s));
+      }
+    } catch (err: any) {
+      console.error("Error updating school:", err);
+      handleFirestoreError(err, OperationType.WRITE, `schools/${schoolId}`);
+      throw err;
+    }
+  };
+
+  const deleteSchool = async (schoolId: string) => {
+    checkRoleAccess([UserRole.SUPERADMIN], "Suppression d'un établissement SaaS");
+    try {
+      await deleteDoc(doc(db, "schools", schoolId));
+      await deleteDoc(doc(db, "school_config", schoolId));
+
+      const collectionsToCleanup = [
+        "users",
+        "campuses",
+        "teachers",
+        "classes",
+        "students",
+        "payments",
+        "waitlist",
+        "reminders",
+        "audit_logs"
+      ];
+
+      for (const colName of collectionsToCleanup) {
+        const q = query(collection(db, colName), where("schoolId", "==", schoolId));
+        const snap = await getDocs(q);
+        const batch = writeBatch(db);
+        snap.forEach(d => {
+          batch.delete(d.ref);
+        });
+        await batch.commit();
+      }
+
+      if (isLocalSession) {
+        setSchools(prev => prev.filter(s => s.id !== schoolId));
+      }
+    } catch (err: any) {
+      console.error("Error deleting school:", err);
+      handleFirestoreError(err, OperationType.WRITE, `schools/${schoolId}`);
+      throw err;
+    }
+  };
+
+
   const addStaffUser = async (
     name: string,
     email: string,
@@ -2310,6 +2365,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         getSchoolSlug,
         findSchoolBySlug,
         registerSchool,
+        updateSchool,
+        deleteSchool,
         renewSchoolSubscription,
         addStaffUser,
         deleteStaffUser,

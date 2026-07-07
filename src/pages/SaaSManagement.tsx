@@ -22,7 +22,10 @@ import {
   Activity,
   Download,
   ToggleLeft,
-  Bell
+  Bell,
+  Pencil,
+  Trash2,
+  X
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 
@@ -33,6 +36,8 @@ export function SaaSManagement() {
     activeSchoolId, 
     setActiveSchoolId, 
     registerSchool, 
+    updateSchool,
+    deleteSchool,
     renewSchoolSubscription,
     addStaffUser,
     rawStudents,
@@ -102,6 +107,55 @@ export function SaaSManagement() {
   // Temporal Statistics states
   const [statsSchoolId, setStatsSchoolId] = useState<string>("all");
   const [statsGrouping, setStatsGrouping] = useState<"week" | "month">("week");
+
+  // Edit/Delete School modal states
+  const [editSchool, setEditSchool] = useState<School | null>(null);
+  const [editSchoolName, setEditSchoolName] = useState("");
+  const [editDirName, setEditDirName] = useState("");
+  const [editDirEmail, setEditDirEmail] = useState("");
+  const [editSubType, setEditSubType] = useState<"basique" | "premium" | "integral">("basique");
+  const [editSubExpiresAt, setEditSubExpiresAt] = useState("");
+  const [isSavingSchool, setIsSavingSchool] = useState(false);
+
+  const handleOpenEditSchool = (school: School) => {
+    setEditSchool(school);
+    setEditSchoolName(school.name);
+    setEditDirName(school.directriceName);
+    setEditDirEmail(school.directriceEmail);
+    setEditSubType(school.subType);
+    setEditSubExpiresAt(school.subExpiresAt.split("T")[0]);
+  };
+
+  const handleUpdateSchool = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editSchool) return;
+    setIsSavingSchool(true);
+    try {
+      await updateSchool(editSchool.id, {
+        name: editSchoolName,
+        directriceName: editDirName,
+        directriceEmail: editDirEmail.trim().toLowerCase(),
+        subType: editSubType,
+        subExpiresAt: new Date(editSubExpiresAt).toISOString()
+      });
+      setEditSchool(null);
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la modification.");
+    } finally {
+      setIsSavingSchool(false);
+    }
+  };
+
+  const handleDeleteSchool = async (schoolId: string, schoolName: string) => {
+    if (!window.confirm(`⚠️ ATTENTION : Voulez-vous vraiment supprimer définitivement l'école "${schoolName}" ?\n\nCela supprimera TOUTES les données associées (élèves, classes, paiements, profs, campus, etc.). Cette action est irréversible.`)) {
+      return;
+    }
+    try {
+      await deleteSchool(schoolId);
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la suppression.");
+    }
+  };
 
   const sTemporalStats = React.useMemo(() => {
     const groups: Record<string, { registrations: number; revenue: number; sortKey: number }> = {};
@@ -737,18 +791,27 @@ export function SaaSManagement() {
                           </div>
                         </td>
                         <td className="py-3 text-right">
-                          <div className="flex items-center justify-end space-x-1.5">
+                          <div className="flex items-center justify-end space-x-1">
                             <button
                               onClick={() => {
                                 setActiveSchoolId(school.id);
                               }}
-                              className={`rounded-lg px-2.5 py-1 transition-all text-xs border cursor-pointer font-medium ${
+                              title="Imiter / Gérer l'école"
+                              className={`rounded-lg p-1.5 transition-all border cursor-pointer ${
                                 isSimulationNow 
                                   ? "bg-amber-100 text-amber-800 border-amber-300" 
                                   : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-800"
                               }`}
                             >
-                              💻 Imiter
+                              💻 <span className="hidden xl:inline ml-1 text-xs">Imiter</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleOpenEditSchool(school)}
+                              title="Modifier l'école"
+                              className="bg-slate-55 text-slate-600 rounded-lg p-1.5 hover:bg-slate-200 border border-slate-200 cursor-pointer"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
                             </button>
 
                             <button
@@ -757,9 +820,18 @@ export function SaaSManagement() {
                                 setRenewType(school.subType);
                                 setActiveTab("actions");
                               }}
-                              className="bg-indigo-600 text-white rounded-lg px-2.5 py-1 hover:bg-indigo-700 text-xs font-semibold shadow-xs cursor-pointer"
+                              title="Renouveler l'abonnement"
+                              className="bg-indigo-600 text-white rounded-lg p-1.5 hover:bg-indigo-700 cursor-pointer"
                             >
-                              💰 Renouveler
+                              <CreditCard className="h-3.5 w-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteSchool(school.id, school.name)}
+                              title="Supprimer l'école"
+                              className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-1.5 hover:bg-red-100 cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </td>
@@ -1595,6 +1667,99 @@ export function SaaSManagement() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT SCHOOL MODAL ── */}
+      {editSchool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-800">
+                Modifier l'école — {editSchool.name}
+              </h3>
+              <button
+                onClick={() => setEditSchool(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateSchool} className="mt-4 grid grid-cols-2 gap-4 text-xs text-slate-700">
+              <div className="flex flex-col gap-1.5 col-span-2">
+                <label className="font-semibold text-slate-650">Nom de l'école *</label>
+                <input
+                  required
+                  value={editSchoolName}
+                  onChange={e => setEditSchoolName(e.target.value)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-sm"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Nom de la Directrice *</label>
+                <input
+                  required
+                  value={editDirName}
+                  onChange={e => setEditDirName(e.target.value)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-sm"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">E-mail de la Directrice *</label>
+                <input
+                  required
+                  type="email"
+                  value={editDirEmail}
+                  onChange={e => setEditDirEmail(e.target.value)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-sm"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Plan d'abonnement *</label>
+                <select
+                  value={editSubType}
+                  onChange={e => setEditSubType(e.target.value as any)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-sm bg-white"
+                >
+                  <option value="basique">Basique (5 000 FCFA / mois)</option>
+                  <option value="premium">Premium (10 000 FCFA / mois)</option>
+                  <option value="integral">Intégral (15 000 FCFA / mois)</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Date d'expiration *</label>
+                <input
+                  required
+                  type="date"
+                  value={editSubExpiresAt}
+                  onChange={e => setEditSubExpiresAt(e.target.value)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-sm"
+                />
+              </div>
+
+              <div className="col-span-2 flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditSchool(null)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 font-bold hover:bg-slate-50 cursor-pointer text-sm"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingSchool}
+                  className="flex-1 rounded-xl bg-indigo-600 py-2.5 font-bold text-white hover:bg-indigo-700 shadow shadow-indigo-200 cursor-pointer text-sm disabled:opacity-60"
+                >
+                  {isSavingSchool ? "Enregistrement..." : "Enregistrer les modifications"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
