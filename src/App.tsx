@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { DataProvider, useData } from "./context/DataContext";
 import { Sidebar } from "./components/layout/Sidebar";
 import { Navbar } from "./components/layout/Navbar";
@@ -327,108 +328,57 @@ const hashRouteToTabMap: Record<string, string> = {
   "super-admin": "saas"
 };
 
-// Helper to parse route information from URL Hash (e.g. #/eleves?id=stud_123)
-const getRouteFromHash = () => {
-  if (typeof window === "undefined") return { tab: "dashboard", studentId: null };
-  const hash = window.location.hash.replace(/^#\/?/, "");
-  if (!hash) return { tab: "dashboard", studentId: null };
-
-  const parts = hash.split("?");
-  const routePath = parts[0] || "tableau-de-bord";
-  const tab = hashRouteToTabMap[routePath] || "dashboard";
-
-  let studentId: string | null = null;
-  if (parts[1]) {
-    const params = new URLSearchParams(parts[1]);
-    studentId = params.get("id");
-  }
-  return { tab, studentId };
-};
-
-// Helper to push state changes to URL Hash
-const navigateTo = (tab: string, studentId: string | null = null) => {
-  if (typeof window === "undefined") return;
-  const finalStudentId = tab === "students" ? studentId : null;
-  const routePath = tabToHashRouteMap[tab] || "tableau-de-bord";
-  let newHash = `#/${routePath}`;
-  if (finalStudentId) {
-    newHash += `?id=${finalStudentId}`;
-  }
-  window.location.hash = newHash;
-};
-
 function DashboardContainer() {
-  const { firebaseUser, loading, currentUser, isLocalSession, currentPlan, logout } = useData();
-  
-  // Initialize navigation state from URL Hash
-  const initialRoute = getRouteFromHash();
-  const [currentTab, setCurrentTab] = useState(initialRoute.tab);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(initialRoute.studentId);
-  
+  const { firebaseUser, loading, currentUser, isLocalSession, currentPlan, schoolSlug } = useData();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
 
-  // Sync state with browser back/forward buttons or hash change events
-  React.useEffect(() => {
-    const handleHashChange = () => {
-      const { tab, studentId } = getRouteFromHash();
-      setCurrentTab(tab);
-      setSelectedStudentId(studentId);
-    };
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
+  // Determine current tab from pathname
+  const currentTab = useMemo(() => {
+    if (location.pathname === "/super-admin") return "saas";
+    const pathSegment = location.pathname.split("/").pop() || "tableau-de-bord";
+    return hashRouteToTabMap[pathSegment] || "dashboard";
+  }, [location.pathname]);
 
-  // Intercept setter calls and push them to URL Hash
+  const selectedStudentId = searchParams.get("id");
+
   const handleSetCurrentTab = (tab: string) => {
-    navigateTo(tab, tab === "students" ? selectedStudentId : null);
+    const routePath = tabToHashRouteMap[tab] || "tableau-de-bord";
+    if (currentUser?.role === "superadmin" && tab === "saas") {
+      navigate("/super-admin");
+    } else if (schoolSlug) {
+      navigate(`/${schoolSlug}/${routePath}`);
+    }
   };
 
   const handleSetSelectedStudentId = (id: string | null) => {
-    navigateTo(currentTab, id);
+    if (id) {
+      navigate(`/${schoolSlug}/eleves?id=${id}`);
+    } else {
+      navigate(`/${schoolSlug}/eleves`);
+    }
   };
 
   // Determine if demo was EXPLICITLY requested vs involuntary offline
   const isDemoLogin = typeof window !== "undefined" && localStorage.getItem("lingua_isDemoLogin") === "true";
 
-  // Auto redirect Super Admin to 'saas' view on startup if hash is not already saas
-  React.useEffect(() => {
-    if (currentUser?.role === "superadmin" && currentTab === "dashboard") {
-      handleSetCurrentTab("saas");
+  // Auto redirect Super Admin to 'saas' view on startup if they are at root
+  useEffect(() => {
+    if (currentUser?.role === "superadmin" && location.pathname === "/") {
+      navigate("/super-admin", { replace: true });
     }
-  }, [currentUser, currentTab]);
+  }, [currentUser, location.pathname, navigate]);
 
-  // Show loading spinner while session is being resolved
-  if (loading) {
-    return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 gap-3">
-        <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
-        <p className="font-sans text-xs font-semibold text-slate-550">Chargement de votre session sécurisée...</p>
-      </div>
-    );
-  }
-
-  // If firebase user exists but profile hasn't loaded yet, wait
-  if (firebaseUser && !currentUser) {
-    return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 gap-3">
-        <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
-        <p className="font-sans text-xs font-semibold text-slate-550">Chargement de votre profil utilisateur...</p>
-      </div>
-    );
-  }
-
-  // For local/demo sessions, firebaseUser may be null after Firebase Auth fires,
-  // but currentUser is restored from localStorage — allow access
-  if (!firebaseUser && !(isLocalSession && currentUser)) {
-    return <LoginScreen />;
-  }
-
-  // Custom router
+  // Custom router rendering logic based on currentTab
   const renderActiveView = () => {
-    // SuperAdmin is a platform operator — redirect all school routes to SaaS view
     if (currentUser?.role === "superadmin" && currentTab !== "saas") {
-      return <SaaSManagement />;
+      // Allow superadmin to view school routes when clicked
+    } else if (currentUser?.role !== "superadmin" && currentTab === "saas") {
+      return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
     }
 
     switch (currentTab) {
@@ -510,7 +460,6 @@ function DashboardContainer() {
         <Sidebar
           currentTab={currentTab}
           setCurrentTab={(tab) => {
-            // Reset selected student details when navigating away
             if (tab !== "students") {
               handleSetSelectedStudentId(null);
             }
@@ -565,11 +514,94 @@ function DashboardContainer() {
   );
 }
 
+// Authentication guard wrapper
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { firebaseUser, currentUser, isLocalSession, loading } = useData();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 gap-3">
+        <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
+        <p className="font-sans text-xs font-semibold text-slate-550">Chargement de votre session sécurisée...</p>
+      </div>
+    );
+  }
+
+  if (!firebaseUser && !(isLocalSession && currentUser)) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Route guard to enforce school scoping
+function SchoolRouteGuard({ children }: { children: React.ReactNode }) {
+  const { schoolSlug: urlSlug } = useParams();
+  const { currentUser, schools, activeSchoolId, setActiveSchoolId, getSchoolSlug } = useData();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!currentUser || !urlSlug) return;
+
+    if (currentUser.role !== "superadmin") {
+      const mySchool = schools.find(s => s.id === currentUser.schoolId);
+      const mySlug = mySchool ? getSchoolSlug(mySchool.name) : "school-demo";
+      
+      if (urlSlug !== mySlug) {
+        navigate(`/${mySlug}/tableau-de-bord`, { replace: true });
+      } else if (activeSchoolId !== currentUser.schoolId) {
+        setActiveSchoolId(currentUser.schoolId);
+      }
+    } else {
+      const targetSchool = schools.find(s => getSchoolSlug(s.name) === urlSlug);
+      if (targetSchool) {
+        if (activeSchoolId !== targetSchool.id) {
+          setActiveSchoolId(targetSchool.id);
+        }
+      }
+    }
+  }, [urlSlug, currentUser, schools, activeSchoolId, setActiveSchoolId, getSchoolSlug, navigate]);
+
+  return <>{children}</>;
+}
+
+// Handle login page access when already authenticated
+function LoginScreenWrapper() {
+  const { firebaseUser, currentUser, isLocalSession } = useData();
+  if (firebaseUser || (isLocalSession && currentUser)) {
+    return <RootRedirect />;
+  }
+  return <LoginScreen />;
+}
+
+// Redirect root index / to correct path based on authentication state
+function RootRedirect() {
+  const { firebaseUser, currentUser, isLocalSession, schoolSlug } = useData();
+
+  if (!firebaseUser && !(isLocalSession && currentUser)) {
+    return <Navigate to="/login" replace />;
+  }
+  if (currentUser?.role === "superadmin") {
+    return <Navigate to="/super-admin" replace />;
+  }
+  if (schoolSlug) {
+    return <Navigate to={`/${schoolSlug}/tableau-de-bord`} replace />;
+  }
+  return <Navigate to="/login" replace />;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <DataProvider>
-        <DashboardContainer />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginScreenWrapper />} />
+            <Route path="/super-admin" element={<RequireAuth><DashboardContainer /></RequireAuth>} />
+            <Route path="/:schoolSlug/*" element={<RequireAuth><SchoolRouteGuard><DashboardContainer /></SchoolRouteGuard></RequireAuth>} />
+            <Route path="*" element={<RootRedirect />} />
+          </Routes>
+        </BrowserRouter>
       </DataProvider>
     </ThemeProvider>
   );

@@ -81,6 +81,9 @@ interface DataContextType {
   activeSchoolId: string | null;
   setActiveSchoolId: (id: string | null) => void;
   currentSchool: School | null;
+  schoolSlug: string | null;
+  getSchoolSlug: (name: string) => string;
+  findSchoolBySlug: (slug: string) => School | null;
   registerSchool: (name: string, dirName: string, dirEmail: string, pack: "basique" | "premium" | "integral", months: number, customExpiryDate?: string) => Promise<void>;
   renewSchoolSubscription: (schoolId: string, pack: "basique" | "premium" | "integral", months: number, customExpiryDate?: string) => Promise<void>;
   addStaffUser: (name: string, email: string, role: UserRole, campusId: string | null, schoolId?: string | null, password?: string) => Promise<void>;
@@ -303,6 +306,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const currentSchool = schools.find(s => s.id === activeSchoolId) || null;
   const currentPlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
 
+  const getSchoolSlug = (name: string): string => {
+    return name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)+/g, "");
+  };
+
+  const findSchoolBySlug = (slug: string): School | null => {
+    return schools.find(s => getSchoolSlug(s.name) === slug) || null;
+  };
+
+  const schoolSlug = currentSchool ? getSchoolSlug(currentSchool.name) : null;
+
   const uniqueLanguages = useMemo(() => {
     const defaultLangs = ["Allemand", "Anglais", "Chinois", "Espagnol", "Français", "Italien", "Portugais", "Russe"];
     const customLangs = schoolConfig?.customLanguages || [];
@@ -338,7 +356,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userRef = doc(db, "users", user.uid);
         try {
           let snapshot;
-          const docTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Firestore operation timeout")), 4000));
+          const docTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Firestore operation timeout")), 15000));
           try {
             snapshot = await Promise.race([getDoc(userRef), docTimeout]);
           } catch (netErr) {
@@ -1038,7 +1056,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Search for a matching user in Firestore (with timeout to prevent hanging)
         const q = query(collection(db, "users"), where("email", "==", cleanEmail));
-        const queryTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Aucun compte trouvé (la base de données est inaccessible).")), 5000));
+        const queryTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Aucun compte trouvé (la base de données est inaccessible).")), 15000));
         const snap = await Promise.race([getDocs(q), queryTimeout]);
         if (snap.empty) {
           throw new Error("Aucun compte trouvé avec cette adresse email.");
@@ -1102,7 +1120,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Only write to Firestore if we have a real Firebase session (not local/demo)
       if (!isLocalSession) {
         try {
-          const writeTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore write timeout")), 5000));
+          const writeTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore write timeout")), 15000));
           await Promise.race([setDoc(doc(db, "users", firebaseUid), updatedProfile), writeTimeout]);
         } catch (dbErr) {
           console.error("Failed writing demo session profile to Firestore:", dbErr);
@@ -2288,6 +2306,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activeSchoolId,
         setActiveSchoolId,
         currentSchool,
+        schoolSlug,
+        getSchoolSlug,
+        findSchoolBySlug,
         registerSchool,
         renewSchoolSubscription,
         addStaffUser,

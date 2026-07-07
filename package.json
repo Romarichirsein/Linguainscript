@@ -7,6 +7,7 @@
     "dev": "vite --port=30020 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
+    "start": "node server.js",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
   },
@@ -24,6 +25,7 @@
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-router-dom": "^7.18.1",
     "recharts": "^3.8.1",
     "vite": "^6.2.3"
   },
