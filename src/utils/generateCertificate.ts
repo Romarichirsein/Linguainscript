@@ -1,186 +1,282 @@
 import { jsPDF } from "jspdf";
 import { Student, Class, Campus, SchoolConfig } from "../types";
 
-export function generateCertificate(
+/** Load image asynchronously via crossOrigin */
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = (err) => reject(err);
+    img.src = url;
+  });
+}
+
+export async function generateCertificate(
   student: Student,
   selectedClass?: Class,
   selectedCampus?: Campus,
   schoolConfig?: SchoolConfig | null
 ) {
   try {
-    // Landscape A4 size is very premium for official certificates
-    // A4 Landscape: 297mm width x 210mm height
+    // Landscape A4 for premium official look
     const doc = new jsPDF({
       orientation: "landscape",
       unit: "mm",
       format: "a4"
     });
 
-    const width = 297;
-    const height = 210;
+    const W = 297;   // total width
+    const H = 210;   // total height
+    const cx = W / 2; // center x
 
-    // Color presets matching schoolConfig.themeColor
+    // ── Theme Colors ──
     const themeColorMap: Record<string, [number, number, number]> = {
-      blue: [37, 99, 235],      // Blue 600
-      emerald: [16, 185, 129],  // Emerald 600
-      rose: [244, 63, 94],      // Rose 600
-      amber: [245, 158, 11],     // Amber 500
-      slate: [55, 65, 81]       // Slate 700
+      blue:    [37,  99, 235],
+      emerald: [16, 185, 129],
+      rose:    [244,  63,  94],
+      amber:   [245, 158,  11],
+      slate:   [55,   65,  81]
     };
+    const primary = themeColorMap[schoolConfig?.themeColor || "blue"];
+    const gold: [number, number, number] = [197, 160, 89];
+    const textDark: [number, number, number] = [30, 41, 59];
+    const textMuted: [number, number, number] = [100, 116, 139];
 
-    const primaryColor = themeColorMap[schoolConfig?.themeColor || "blue"];
-    const textColor = [30, 41, 59]; // Slate 800
-    const goldColor = [197, 160, 89]; // Warm luxury gold for certificate credentials
+    // ── Load Logo ──
+    let logoImg: HTMLImageElement | null = null;
+    if (schoolConfig?.logoUrl) {
+      try { logoImg = await loadImage(schoolConfig.logoUrl); } catch (_) {}
+    }
 
-    // 1. Draw elegant double certificate frame border
-    // Outer border (thin)
-    doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.setLineWidth(0.6);
-    doc.rect(8, 8, width - 16, height - 16);
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 1. WATERMARK  — center, very low opacity logo
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if (logoImg) {
+      try {
+        doc.saveGraphicsState();
+        (doc as any).setGState(new (doc as any).GState({ opacity: 0.05 }));
+        doc.addImage(logoImg, "PNG", cx - 40, H / 2 - 40, 80, 80);
+        doc.restoreGraphicsState();
+      } catch (_) {}
+    }
 
-    // Inner border (double thin / gold style)
-    doc.setDrawColor(goldColor[0], goldColor[1], goldColor[2]);
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 2. BORDERS  — double elegant frame
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Outer primary color band (top & bottom thin bands)
+    doc.setFillColor(primary[0], primary[1], primary[2]);
+    doc.rect(0, 0, W, 3.5, "F");
+    doc.rect(0, H - 3.5, W, 3.5, "F");
+
+    // Main outer border
+    doc.setDrawColor(primary[0], primary[1], primary[2]);
+    doc.setLineWidth(0.8);
+    doc.rect(6, 6, W - 12, H - 12);
+
+    // Inner gold border
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
     doc.setLineWidth(0.35);
-    doc.rect(10.5, 10.5, width - 21, height - 21);
+    doc.rect(9, 9, W - 18, H - 18);
 
-    // Elegant corner accents
+    // Gold corner accents
     const corners = [
-      { x: 10.5, y: 10.5, dx1: 8, dy1: 0, dx2: 0, dy2: 8 }, // Top Left
-      { x: width - 10.5, y: 10.5, dx1: -8, dy1: 0, dx2: 0, dy2: 8 }, // Top Right
-      { x: 10.5, y: height - 10.5, dx1: 8, dy1: 0, dx2: 0, dy2: -8 }, // Bottom Left
-      { x: width - 10.5, y: height - 10.5, dx1: -8, dy1: 0, dx2: 0, dy2: -8 } // Bottom Right
-    ];
-
-    doc.setDrawColor(goldColor[0], goldColor[1], goldColor[2]);
-    doc.setLineWidth(1.2);
-    corners.forEach(c => {
-      doc.line(c.x, c.y, c.x + c.dx1, c.y + c.dy1);
-      doc.line(c.x, c.y, c.x + c.dx2, c.y + c.dy2);
+      [9, 9],
+      [W - 9, 9],
+      [9, H - 9],
+      [W - 9, H - 9]
+    ] as [number, number][];
+    doc.setLineWidth(1.4);
+    corners.forEach(([x, y]) => {
+      const sx = x === 9 ? 1 : -1;
+      const sy = y === 9 ? 1 : -1;
+      doc.line(x, y, x + sx * 10, y);
+      doc.line(x, y, x, y + sy * 10);
     });
 
-    // Watermark/Central Shield decorative vector (soft grey/gold opacity representation)
-    doc.setDrawColor(241, 245, 249);
-    doc.setLineWidth(0.5);
-    doc.ellipse(width / 2, height / 2 + 10, 45, 30, "S");
-    doc.ellipse(width / 2, height / 2 + 10, 41, 26, "S");
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 3. SIDE DECORATIVE BANDS  (left & right)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    doc.setFillColor(primary[0], primary[1], primary[2]);
+    doc.rect(0, 0, 3.5, H, "F");
+    doc.rect(W - 3.5, 0, 3.5, H, "F");
 
-    // 2. School Brand Info
-    let logoY = 18;
-    if (schoolConfig?.logoUrl) {
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 4. HEADER  — Logo + School Name + Slogan
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    let headerY = 16;
+
+    // Logo centered at top
+    if (logoImg) {
       try {
-        // Center the logo
-        doc.addImage(schoolConfig.logoUrl, "JPEG", width / 2 - 12, logoY, 24, 24);
-        logoY += 30;
-      } catch (e) {
-        logoY = 22;
+        doc.addImage(logoImg, "PNG", cx - 14, headerY, 28, 28);
+        headerY += 32;
+      } catch (_) {
+        headerY += 4;
       }
     } else {
-      logoY = 25;
+      headerY += 4;
     }
 
-    // School Name & Slogan Centered
+    // School name
+    const schoolName = schoolConfig?.name?.toUpperCase() || "ÉCOLE DE LANGUES";
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(20);
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text(schoolConfig?.name?.toUpperCase() || "LINGUAINSCRIPT", width / 2, logoY, { align: "center" });
+    doc.setFontSize(17);
+    doc.setTextColor(primary[0], primary[1], primary[2]);
+    doc.text(schoolName, cx, headerY, { align: "center" });
+    headerY += 6;
 
+    // Slogan
+    const slogan = schoolConfig?.slogan || "L'excellence linguistique à votre portée";
     doc.setFont("Helvetica", "italic");
-    doc.setFontSize(9.5);
-    doc.setTextColor(115, 125, 140);
-    doc.text(schoolConfig?.slogan || "L'excellence linguistique à portée de main", width / 2, logoY + 6, { align: "center" });
+    doc.setFontSize(8.5);
+    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+    doc.text(slogan, cx, headerY, { align: "center" });
+    headerY += 4;
 
-    const titleY = logoY + 22;
+    // Thin gold separator
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
+    doc.setLineWidth(0.6);
+    doc.line(cx - 60, headerY, cx + 60, headerY);
+    headerY += 7;
 
-    // 3. Document Title
-    const titleText = schoolConfig?.certificateTitle?.toUpperCase() || "ATTESTATION DE SÉJOUR & RÉUSSITE";
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 5. TITLE
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const titleText = (schoolConfig?.certificateTitle || "ATTESTATION DE SÉJOUR & RÉUSSITE").toUpperCase();
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(24);
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text(titleText, width / 2, titleY, { align: "center" });
+    doc.setFontSize(22);
+    doc.setTextColor(primary[0], primary[1], primary[2]);
+    doc.text(titleText, cx, headerY, { align: "center" });
+    headerY += 4;
 
-    // Golden underline below title
-    doc.setDrawColor(goldColor[0], goldColor[1], goldColor[2]);
+    // Underline with gold dashes
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
     doc.setLineWidth(1.0);
-    doc.line(width / 2 - 50, titleY + 3, width / 2 + 50, titleY + 3);
+    doc.line(cx - 55, headerY, cx + 55, headerY);
+    headerY += 9;
 
-    // 4. Dynamic body text rendering
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 6. BODY TEXT — dynamic with student name bold
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     const studentFullName = `${student.firstName.toUpperCase()} ${student.lastName.toUpperCase()}`;
-    const schoolName = schoolConfig?.name || "inscriptions de l'école";
-    
-    let rawBody = schoolConfig?.certificateBody || "Nous soussignés, {ecole_nom}, certifions par la présente que l'élève {nom_etudiant} a suivi avec succès tous ses cours de perfectionnement linguistique au sein de notre établissement.";
-    
-    // Replace placeholders
-    let formattedBodyText = rawBody
+    let rawBody =
+      schoolConfig?.certificateBody ||
+      "Nous soussignés, {ecole_nom}, certifions par la présente que l'élève {nom_etudiant} a suivi avec assiduité et succès ses cours de perfectionnement linguistique au sein de notre établissement. Cette attestation lui est délivrée pour servir et valoir ce que de droit.";
+
+    const formattedBody = rawBody
       .replace(/{nom_etudiant}/g, studentFullName)
       .replace(/{student_name}/g, studentFullName)
-      .replace(/{ecole_nom}/g, schoolName)
-      .replace(/{school_name}/g, schoolName);
+      .replace(/{ecole_nom}/g, schoolConfig?.name || schoolName)
+      .replace(/{school_name}/g, schoolConfig?.name || schoolName);
 
     doc.setFont("Helvetica", "normal");
-    doc.setFontSize(13);
-    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(12);
+    doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+    const bodyLines = doc.splitTextToSize(formattedBody, 220);
+    bodyLines.forEach((line: string) => {
+      doc.text(line, cx, headerY, { align: "center" });
+      headerY += 7.5;
+    });
 
-    // Split text into multiple lines for landscape page sizing (width - 60mm margins)
-    const bodyLines = doc.splitTextToSize(formattedBodyText, 220);
-    const bodyStartY = titleY + 16;
-    
-    // Render lines centered
-    let currentY = bodyStartY;
-    for (let i = 0; i < bodyLines.length; i++) {
-      doc.text(bodyLines[i], width / 2, currentY, { align: "center" });
-      currentY += 8;
-    }
-
-    // Optional Class details
+    // Class details (optional)
     if (selectedClass) {
+      headerY += 2;
       doc.setFont("Helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      const classDetailText = `Niveau Programmé : ${selectedClass.language} ${selectedClass.level}  |  Période journalière : ${selectedClass.period}`;
-      doc.text(classDetailText, width / 2, currentY + 3, { align: "center" });
+      doc.setFontSize(10.5);
+      doc.setTextColor(primary[0], primary[1], primary[2]);
+      const classText = `Niveau : ${selectedClass.language} — ${selectedClass.level}  ·  Horaire : ${selectedClass.period}`;
+      doc.text(classText, cx, headerY, { align: "center" });
+      headerY += 5;
     }
 
-    // 5. Date & Authorizations footer block
-    const footerStartY = 162;
-    doc.setFont("Helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    
-    // Date and location on bottom-left
-    const location = selectedCampus ? selectedCampus.name : "Centre Académique Principal";
-    const dateText = `Fait à ${location},\nle ${new Date().toLocaleDateString("fr-FR", {
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 7. FOOTER SIGNATURE BLOCK
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const footerY = H - 46;
+
+    // Thin gold separator
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
+    doc.setLineWidth(0.5);
+    doc.line(25, footerY, W - 25, footerY);
+
+    // Left: Date & Place
+    const location = selectedCampus?.name || "Campus Principal";
+    const dateStr = new Date().toLocaleDateString("fr-FR", {
       year: "numeric",
       month: "long",
       day: "numeric"
-    })}`;
-    doc.text(dateText, 25, footerStartY);
-
-    // Signatory on bottom-right
-    const signatoryText = schoolConfig?.certificateSignatory || "La Direction Académique";
-    doc.setFont("Helvetica", "bold");
-    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-    doc.text(signatoryText, width - 25, footerStartY, { align: "right" });
-
-    // Dotted line for physical signature
-    doc.setDrawColor(186, 195, 208);
-    doc.setLineWidth(0.3);
-    doc.line(width - 85, footerStartY + 14, width - 25, footerStartY + 14);
-
-    // 6. Security ID and verification footer
-    const certHash = `CERT-${student.id.substring(student.id.length - 4).toUpperCase()}-${Date.now().toString().substring(8)}`;
+    });
     doc.setFont("Helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(150, 160, 175);
-    doc.text(`Identifiant d'Authentification : ${certHash}`, width / 2, height - 16, { align: "center" });
-    doc.text("Ce document officiel fait foi d'inscription validée et d'excellence de scolarité au sein de notre établissement.", width / 2, height - 12, { align: "center" });
+    doc.setFontSize(9);
+    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+    doc.text("Fait à :", 28, footerY + 8);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+    doc.text(location, 28, footerY + 13);
+    doc.setFont("Helvetica", "normal");
+    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+    doc.text(`Le ${dateStr}`, 28, footerY + 18);
 
-    // Download / Save PDF
-    const safeFirstName = student.firstName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-    const safeLastName = student.lastName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-    const fileName = `certificat_${safeFirstName}_${safeLastName}.pdf`;
-    
-    doc.save(fileName);
+    // Center: Security stamp placeholder (circular seal)
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
+    doc.setLineWidth(0.5);
+    doc.circle(cx, footerY + 12, 14, "S");
+    doc.setLineWidth(0.25);
+    doc.circle(cx, footerY + 12, 12, "S");
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(gold[0], gold[1], gold[2]);
+    doc.text("CACHET", cx, footerY + 10, { align: "center" });
+    doc.text("OFFICIEL", cx, footerY + 14.5, { align: "center" });
+
+    // Right: Signature area
+    const sigX = W - 80;
+    const sigBoxW = 65;
+    const sigBoxH = 22;
+
+    // Signature label
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+    const sigLabel = schoolConfig?.certificateSignatory || "La Direction Académique";
+    doc.text(sigLabel, W - 28, footerY + 6, { align: "right" });
+
+    // Signature box (dashed border)
+    doc.setDrawColor(textMuted[0], textMuted[1], textMuted[2]);
+    doc.setLineWidth(0.3);
+    doc.setLineDashPattern([1, 1.5], 0);
+    doc.rect(sigX - 2, footerY + 8, sigBoxW, sigBoxH);
+    doc.setLineDashPattern([], 0); // Reset dash
+
+    // Dotted signature line inside box
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
+    doc.setLineWidth(0.5);
+    doc.line(sigX + 4, footerY + 26, sigX + sigBoxW - 6, footerY + 26);
+
+    // Signature guide text
+    doc.setFont("Helvetica", "italic");
+    doc.setFontSize(7);
+    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+    doc.text("Signature et Cachet", cx + 50, footerY + 30, { align: "center" });
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 8. SECURITY IDENTIFIER
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const certHash = `CERT-${student.id.substring(student.id.length - 6).toUpperCase()}-${Date.now().toString().slice(-5)}`;
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(186, 196, 210);
+    doc.text(`Réf. authentification : ${certHash}`, cx, H - 7, { align: "center" });
+    doc.text("Ce document officiel certifie la scolarité et l'assiduité de l'étudiant au sein de l'établissement.", cx, H - 4, { align: "center" });
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 9. SAVE
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const safeFirst = student.firstName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    const safeLast  = student.lastName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    doc.save(`certificat_${safeFirst}_${safeLast}.pdf`);
   } catch (err) {
-    console.error("Critical error producing certificate PDF via jsPDF: ", err);
+    console.error("Erreur lors de la génération du certificat PDF:", err);
   }
 }

@@ -558,7 +558,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
                   alert(`⚠️ Fonctionnalité Bloquée : La génération de documents académiques n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Intégral pour débloquer cette fonctionnalité.`);
                   return;
                 }
-                generateCertificate(student, studentClass, studentCampus, schoolConfig);
+                generateCertificate(student, studentClass, studentCampus, schoolConfig).catch(e => console.error(e));
               }}
               className={`w-full flex justify-center items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white py-2.5 text-xs font-bold transition-all cursor-pointer shadow-md ${
                 !currentPlan.canGenerateDocuments ? "opacity-50 cursor-not-allowed" : ""
