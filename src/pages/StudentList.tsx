@@ -750,7 +750,6 @@ export const StudentList: React.FC<StudentListProps> = ({
                           <button
                             onClick={() => {
                               setSelectedStudentId(student.id);
-                              setCurrentTab("students");
                             }}
                             title="Fiche & Suivi"
                             className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors cursor-pointer"

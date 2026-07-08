@@ -34,7 +34,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
   onBack,
   setCurrentTab
 }) => {
-  const { students, classes, campuses, teachers, payments, auditLogs, addPayment, renewStudent, schoolConfig, updateStudent, reminders, addReminder, currentPlan, deleteStudent, currentUser } = useData();
+  const { students, classes, campuses, teachers, payments, auditLogs, addPayment, renewStudent, schoolConfig, updateStudent, reminders, addReminder, currentPlan, deleteStudent, currentUser, logAction } = useData();
 
   const [activeSubTab, setActiveSubTab] = useState<"payments" | "history" | "reminders">("payments");
   const [sortAsc, setSortAsc] = useState<boolean>(true);
@@ -198,11 +198,22 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
   };
 
   const triggerExportReceipt = (pay: any) => {
-    generateReceipt(student, pay, studentClass, studentCampus, schoolConfig);
+    generateReceipt(student, pay, studentClass, studentCampus, schoolConfig)
+      .then(() => {
+        logAction("GENERATE_RECEIPT", student.id, `${student.firstName} ${student.lastName}`, {
+          paymentId: pay.id,
+          amount: pay.amount,
+          mode: pay.mode
+        }).catch(() => {});
+      })
+      .catch(e => console.error(e));
   };
 
   const triggerExportInvoice = () => {
     generateInvoice(student, studentClass, studentCampus, studentPayments, schoolConfig);
+    logAction("GENERATE_INVOICE", student.id, `${student.firstName} ${student.lastName}`, {
+      totalPayments: studentPayments.length
+    }).catch(() => {});
   };
 
   return (
@@ -558,7 +569,13 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
                   alert(`⚠️ Fonctionnalité Bloquée : La génération de documents académiques n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Intégral pour débloquer cette fonctionnalité.`);
                   return;
                 }
-                generateCertificate(student, studentClass, studentCampus, schoolConfig).catch(e => console.error(e));
+                generateCertificate(student, studentClass, studentCampus, schoolConfig)
+                  .then(() => {
+                    logAction("GENERATE_CERTIFICATE", student.id, `${student.firstName} ${student.lastName}`, {
+                      class: studentClass ? `${studentClass.language} ${studentClass.level}` : undefined
+                    }).catch(() => {});
+                  })
+                  .catch(e => console.error(e));
               }}
               className={`w-full flex justify-center items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white py-2.5 text-xs font-bold transition-all cursor-pointer shadow-md ${
                 !currentPlan.canGenerateDocuments ? "opacity-50 cursor-not-allowed" : ""

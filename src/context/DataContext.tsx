@@ -128,6 +128,7 @@ interface DataContextType {
   addReminder: (reminderData: Omit<Reminder, "id" | "createdAt" >) => Promise<void>;
   runAutomaticSMSSweep: () => Promise<{ triggeredCount: number; logs: string[] }>;
   checkRoleAccess: (allowedRoles: UserRole[], actionDescription: string) => void;
+  logAction: (action: string, targetId: string, targetName: string, details?: any) => Promise<void>;
   
   // System/SaaS notifications
   systemNotifications: SystemNotification[];
@@ -550,7 +551,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subType: "integral",
       subStatus: "active",
       subExpiresAt: "2027-12-31T23:59:59.000Z",
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status: "active"
     },
     {
       id: "school_basique",
@@ -560,7 +562,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subType: "basique",
       subStatus: "active",
       subExpiresAt: "2026-10-31T23:59:59.000Z",
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status: "active"
     },
     {
       id: "school_premium",
@@ -570,7 +573,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subType: "premium",
       subStatus: "active",
       subExpiresAt: "2026-11-30T23:59:59.000Z",
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status: "active"
     },
     {
       id: "school_integral",
@@ -580,7 +584,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subType: "integral",
       subStatus: "active",
       subExpiresAt: "2027-01-15T23:59:59.000Z",
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status: "active"
     }
   ];
 
@@ -872,7 +877,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subType: pack,
       subStatus: "active",
       subExpiresAt: expiryStr,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status: "active"
     };
 
     try {
@@ -1138,6 +1144,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Mot de passe incorrect.");
       }
 
+      if (resolvedProfile && resolvedProfile.schoolId) {
+        const schoolDoc = await getDoc(doc(db, "schools", resolvedProfile.schoolId));
+        if (schoolDoc.exists()) {
+          const schoolData = schoolDoc.data() as School;
+          if (schoolData.status === "blocked") {
+            throw new Error("Votre établissement a été suspendu par le super administrateur. Veuillez régulariser votre situation.");
+          }
+        }
+      }
+
       const deterministicPassword = `${cleanEmail}_lingua_auth_2026`;
       let firebaseAuthUser: any = null;
       let firebaseUid = resolvedProfile.id;
@@ -1195,6 +1211,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setFirebaseUser(mockFUser);
       setCurrentUser(updatedProfile);
+
+      // ── Audit: log successful login ──
+      try {
+        const loginLogId = `log_${Date.now()}_login`;
+        await setDoc(doc(db, "audit_logs", loginLogId), {
+          id: loginLogId,
+          action: "LOGIN",
+          targetId: firebaseUid,
+          targetName: updatedProfile.name,
+          userId: firebaseUid,
+          userName: updatedProfile.name,
+          userRole: updatedProfile.role,
+          campusId: updatedProfile.campusId || "global",
+          timestamp: new Date().toISOString(),
+          details: { email: cleanEmail, method: "password" },
+          schoolId: updatedProfile.schoolId || "global"
+        });
+      } catch (_) { /* Non-blocking */ }
 
     } catch (err: any) {
       console.error("Email/Password authentication failed: ", err);
@@ -2563,6 +2597,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateSystemNotification,
         requestSchoolRenewal,
         approveSchoolRenewal,
+        logAction: handleAudit,
         
         // Raw collections
         rawStudents,
