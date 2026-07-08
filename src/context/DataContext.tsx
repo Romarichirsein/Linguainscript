@@ -110,9 +110,14 @@ interface DataContextType {
   
   addCampus: (name: string, address: string) => Promise<void>;
   updateCampus: (id: string, name: string, address: string, isActive: boolean) => Promise<void>;
+  deleteCampus: (id: string) => Promise<void>;
   addTeacher: (name: string, phone: string, email: string, languages: string[], campusId: string) => Promise<void>;
+  updateTeacher: (id: string, name: string, phone: string, email: string, languages: string[], campusId: string, isActive: boolean) => Promise<void>;
+  deleteTeacher: (id: string) => Promise<void>;
   addClass: (classData: OmitClassFields) => Promise<void>;
   updateClass: (id: string, updated: ClassUpdate) => Promise<void>;
+  deleteClass: (id: string) => Promise<void>;
+  updateLanguage: (oldName: string, newName: string) => Promise<void>;
   
   promoteFromWaitlist: (waitlistId: string, paymentAmount: number, mode: "Espèces" | "Mobile Money" | "Virement") => Promise<{ success: boolean; message: string }>;
   removeFromWaitlist: (waitlistId: string) => Promise<void>;
@@ -1111,14 +1116,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Search for a matching user in Firestore (with timeout to prevent hanging)
         const q = query(collection(db, "users"), where("email", "==", cleanEmail));
-        const queryTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Aucun compte trouvé (la base de données est inaccessible).")), 15000));
+        const queryTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("La base de données est temporairement inaccessible. Essayez de vider le cache de votre navigateur (Ctrl+Shift+Suppr) puis rechargez la page.")), 15000));
         const snap = await Promise.race([getDocs(q), queryTimeout]);
         if (snap.empty) {
           throw new Error("Aucun compte trouvé avec cette adresse email.");
         }
 
-        const userDoc = snap.docs[0];
-        resolvedProfile = userDoc.data() as UserProfile;
+        // If multiple user docs match, prefer the one with a password set
+        if (snap.docs.length > 1) {
+          const docWithPassword = snap.docs.find(d => d.data().password);
+          const userDoc = docWithPassword || snap.docs[0];
+          resolvedProfile = userDoc.data() as UserProfile;
+        } else {
+          resolvedProfile = snap.docs[0].data() as UserProfile;
+        }
         storedPassword = resolvedProfile.password || "lingua123";
       }
 
@@ -1753,6 +1764,37 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteCampus = async (id: string) => {
+    checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Suppression d'un campus");
+    
+    // Check if any class is associated with this campus
+    const hasAssociatedClasses = rawClasses.some(c => c.campusId === id);
+    if (hasAssociatedClasses) {
+      throw new Error("Impossible de supprimer ce campus car il est associé à une ou plusieurs classes.");
+    }
+    
+    // Check if any student is associated with this campus
+    const hasAssociatedStudents = rawStudents.some(s => s.campusId === id);
+    if (hasAssociatedStudents) {
+      throw new Error("Impossible de supprimer ce campus car des élèves y sont inscrits.");
+    }
+    
+    const campusToDelete = rawCampuses.find(c => c.id === id);
+    const campusName = campusToDelete ? campusToDelete.name : "Campus inconnu";
+
+    if (isLocalSession) {
+      setRawCampuses(prev => prev.filter(c => c.id !== id));
+      return;
+    }
+    
+    try {
+      await deleteDoc(doc(db, "campuses", id));
+      await handleAudit("UPDATE_STUDENT", id, campusName, { action: "Suppression Campus" });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, `campuses/${id}`);
+    }
+  };
+
   const updatePlanConfig = async (planId: "basique" | "premium" | "integral", newConfig: Partial<PlanConfig>) => {
     if (currentUser?.role !== UserRole.SUPERADMIN) {
       throw new Error("Seul le Super Administrateur peut modifier la configuration des plans.");
@@ -1802,6 +1844,44 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateTeacher = async (id: string, name: string, phone: string, email: string, languages: string[], campusId: string, isActive: boolean) => {
+    checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Modification d'un professeur");
+    if (isLocalSession) {
+      setRawTeachers(prev => prev.map(t => t.id === id ? { ...t, name, phone, email, languages, campusId, isActive } as Teacher : t));
+      return;
+    }
+    try {
+      await updateDoc(doc(db, "teachers", id), { name, phone, email, languages, campusId, isActive });
+      await handleAudit("UPDATE_STUDENT", id, name, { action: "Modification Professeur", languages, isActive });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, `teachers/${id}`);
+    }
+  };
+
+  const deleteTeacher = async (id: string) => {
+    checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Suppression d'un professeur");
+    
+    // Check if teacher is assigned to any class
+    const isAssignedToClass = rawClasses.some(c => c.teacherId === id);
+    if (isAssignedToClass) {
+      throw new Error("Impossible de supprimer ce professeur car il est affecté à une ou plusieurs classes.");
+    }
+
+    const teacherToDelete = rawTeachers.find(t => t.id === id);
+    const teacherName = teacherToDelete ? teacherToDelete.name : "Professeur inconnu";
+
+    if (isLocalSession) {
+      setRawTeachers(prev => prev.filter(t => t.id !== id));
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, "teachers", id));
+      await handleAudit("UPDATE_STUDENT", id, teacherName, { action: "Suppression Professeur" });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, `teachers/${id}`);
+    }
+  };
+
   const addClass = async (classData: OmitClassFields) => {
     checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE, UserRole.SECRETAIRE], "Enregistrement d'une classe");
     const id = `class_${Date.now()}`;
@@ -1835,6 +1915,85 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err: any) {
       handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
     }
+  };
+
+  const deleteClass = async (id: string) => {
+    checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE, UserRole.SECRETAIRE], "Suppression d'une classe");
+    
+    // Check if the class has any students
+    const hasStudents = rawStudents.some(s => s.classId === id);
+    const classObj = rawClasses.find(c => c.id === id);
+    if (hasStudents || (classObj && classObj.currentCount > 0)) {
+      throw new Error("Impossible de supprimer cette classe car elle contient des élèves.");
+    }
+
+    const className = classObj ? `${classObj.language} ${classObj.level}` : "Classe inconnue";
+
+    if (isLocalSession) {
+      setRawClasses(prev => prev.filter(c => c.id !== id));
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, "classes", id));
+      await handleAudit("UPDATE_STUDENT", id, className, { action: "Suppression Classe" });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, `classes/${id}`);
+    }
+  };
+
+  const updateLanguage = async (oldName: string, newName: string) => {
+    checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Modification d'une langue");
+    const cleanOld = oldName.trim();
+    const cleanNew = newName.trim();
+    if (!cleanNew || cleanOld === cleanNew) return;
+
+    // 1. Update SchoolConfig customLanguages list
+    const currentCustoms = schoolConfig?.customLanguages || [];
+    let updatedCustoms = [...currentCustoms];
+    
+    if (currentCustoms.includes(cleanOld)) {
+      updatedCustoms = currentCustoms.map(l => l === cleanOld ? cleanNew : l);
+    } else {
+      updatedCustoms.push(cleanNew);
+    }
+    
+    updatedCustoms = Array.from(new Set(updatedCustoms)).sort();
+    await updateSchoolConfig({ customLanguages: updatedCustoms });
+
+    // 2. Update classes using this language
+    const classesToUpdate = rawClasses.filter(c => c.language === cleanOld);
+    for (const cls of classesToUpdate) {
+      if (isLocalSession) {
+        setRawClasses(prev => prev.map(c => c.id === cls.id ? { ...c, language: cleanNew } as Class : c));
+      } else {
+        try {
+          await updateDoc(doc(db, "classes", cls.id), { language: cleanNew });
+        } catch (err) {
+          console.error(`Failed to update language in class ${cls.id}:`, err);
+        }
+      }
+    }
+
+    // 3. Update teachers specializing in this language
+    const teachersToUpdate = rawTeachers.filter(t => t.languages.includes(cleanOld));
+    for (const teach of teachersToUpdate) {
+      const updatedLangs = teach.languages.map(l => l === cleanOld ? cleanNew : l);
+      if (isLocalSession) {
+        setRawTeachers(prev => prev.map(t => t.id === teach.id ? { ...t, languages: updatedLangs } as Teacher : t));
+      } else {
+        try {
+          await updateDoc(doc(db, "teachers", teach.id), { languages: updatedLangs });
+        } catch (err) {
+          console.error(`Failed to update languages for teacher ${teach.id}:`, err);
+        }
+      }
+    }
+
+    await handleAudit("UPDATE_STUDENT", activeSchoolId || "school_demo", cleanOld, {
+      action: "Modification Langue",
+      oldValue: cleanOld,
+      newValue: cleanNew
+    });
   };
 
   const promoteFromWaitlist = async (waitlistId: string, paymentAmount: number, mode: "Espèces" | "Mobile Money" | "Virement") => {
@@ -2380,9 +2539,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         renewStudent,
         addCampus,
         updateCampus,
+        deleteCampus,
         addTeacher,
+        updateTeacher,
+        deleteTeacher,
         addClass,
         updateClass,
+        deleteClass,
+        updateLanguage,
         promoteFromWaitlist,
         removeFromWaitlist,
         resetDatabase,

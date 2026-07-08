@@ -6,7 +6,18 @@ function formatFCFA(amount: number): string {
   return amount.toLocaleString("fr-FR").replace(/\s/g, ".") + " FCFA";
 }
 
-export function generateReceipt(
+/** Helper to load an image asynchronously */
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = (err) => reject(err);
+    img.src = url;
+  });
+}
+
+export async function generateReceipt(
   student: Student,
   payment: Payment,
   selectedClass?: Class,
@@ -17,7 +28,7 @@ export function generateReceipt(
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
-      format: "a5" // Standard receipt is clean at A5 size
+      format: "a5" // Standard receipt size
     });
 
     // Color presets matching schoolConfig.themeColor
@@ -33,16 +44,25 @@ export function generateReceipt(
     const textColor = [30, 41, 59]; // Slate 800
     const mutedColor = [100, 116, 139]; // Slate 500
 
-    // ── WATERMARK: school logo centered, low opacity ──
+    // Load school logo if available
+    let logoImg: HTMLImageElement | null = null;
     if (schoolConfig?.logoUrl) {
       try {
-        // Draw logo as a large centered watermark behind everything
+        logoImg = await loadImage(schoolConfig.logoUrl);
+      } catch (err) {
+        console.warn("Could not load logo for watermark/header:", err);
+      }
+    }
+
+    // ── WATERMARK: school logo centered, low opacity ──
+    if (logoImg) {
+      try {
         doc.saveGraphicsState();
-        (doc as any).setGState(new (doc as any).GState({ opacity: 0.06 }));
-        doc.addImage(schoolConfig.logoUrl, "JPEG", 30, 55, 88, 88);
+        (doc as any).setGState(new (doc as any).GState({ opacity: 0.05 }));
+        doc.addImage(logoImg, "PNG", 35, 60, 75, 75);
         doc.restoreGraphicsState();
       } catch (_) {
-        // Silently skip watermark if image fails to load
+        // Silently fallback if image error
       }
     }
 
@@ -55,49 +75,59 @@ export function generateReceipt(
     doc.rect(4, 4, 140, 4, "F");
 
     // Header Logo and Slogan
-    if (schoolConfig?.logoUrl) {
+    const schoolName = schoolConfig?.name || "ÉCOLE DE LANGUES";
+    const sloganText = schoolConfig?.slogan || "L'excellence linguistique à votre portée";
+
+    if (logoImg) {
       try {
-        doc.addImage(schoolConfig.logoUrl, "JPEG", 10, 10, 10, 10);
+        doc.addImage(logoImg, "PNG", 10, 10, 12, 12);
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(13);
         doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        doc.text(schoolConfig.name || "LinguaInscript", 22, 16);
+        doc.text(schoolName.toUpperCase(), 25, 16);
         
         doc.setFont("Helvetica", "normal");
-        doc.setFontSize(7);
+        doc.setFontSize(7.5);
         doc.setTextColor(100, 116, 139);
-        doc.text(schoolConfig.slogan || "L'excellence linguistique à portée de main", 22, 21);
+        doc.text(sloganText, 25, 21);
       } catch (e) {
         doc.setFont("Helvetica", "bold");
-        doc.setFontSize(15);
+        doc.setFontSize(14);
         doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        doc.text(schoolConfig?.name || "LinguaInscript", 10, 18);
+        doc.text(schoolName.toUpperCase(), 10, 18);
 
         doc.setFont("Helvetica", "normal");
         doc.setFontSize(7.5);
         doc.setTextColor(100, 116, 139);
-        doc.text(schoolConfig?.slogan || "L'excellence linguistique à portée de main", 10, 23);
+        doc.text(sloganText, 10, 23);
       }
     } else {
       doc.setFont("Helvetica", "bold");
-      doc.setFontSize(15);
+      doc.setFontSize(14);
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      doc.text(schoolConfig?.name || "LinguaInscript", 10, 18);
+      doc.text(schoolName.toUpperCase(), 10, 18);
 
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
-      doc.text(schoolConfig?.slogan || "L'excellence linguistique à portée de main", 10, 23);
+      doc.text(sloganText, 10, 23);
     }
 
-    // School details
+    // School Location and Contact details (right-aligned)
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(8);
+    doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text(selectedCampus ? selectedCampus.name : "Campus Universel", 144, 18, { align: "right" });
+    doc.text(selectedCampus ? selectedCampus.name : "Campus Principal", 144, 15, { align: "right" });
     
     doc.setFont("Helvetica", "normal");
-    doc.text(selectedCampus ? selectedCampus.address : "Douala, Cameroun", 144, 23, { align: "right" });
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(selectedCampus ? selectedCampus.address : "Douala, Cameroun", 144, 19, { align: "right" });
+    
+    // Add Email contact of the school if configured
+    if (schoolConfig?.id) {
+      doc.text(`Contact: info@linguainscript.com`, 144, 23, { align: "right" });
+    }
 
     // Divider
     doc.setDrawColor(226, 232, 240);
@@ -105,7 +135,7 @@ export function generateReceipt(
 
     // Receipt Metadata
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     doc.text("REÇU DE PAIEMENT", 10, 36);
 
@@ -129,12 +159,12 @@ export function generateReceipt(
     doc.rect(10, 53, 128, 42, "S");
 
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     doc.text("INFORMATIONS ÉTUDIANT", 14, 60);
 
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
     doc.text(`Nom : ${student.firstName.toUpperCase()} ${student.lastName.toUpperCase()}`, 14, 67);
     doc.text(`Contact : ${student.phone}`, 14, 73);
@@ -151,7 +181,7 @@ export function generateReceipt(
 
     // Payment break-down Table
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     doc.text("DÉTAIL DU RÈGLEMENT", 10, 107);
 
@@ -227,7 +257,7 @@ export function generateReceipt(
     doc.setTextColor(148, 163, 184);
     doc.text("Ce reçu fait foi d'inscription officielle et de validation de paiement.", 74, 201, { align: "center" });
 
-    // Download the PDF file directly (solving the iframe popups block)
+    // Download the PDF file directly
     const normalizedFirstName = student.firstName.toLowerCase().replace(/[^a-z0-9]/g, "_");
     const normalizedLastName = student.lastName.toLowerCase().replace(/[^a-z0-9]/g, "_");
     const receiptFileName = `recu_${receiptNum}_${normalizedFirstName}_${normalizedLastName}.pdf`;

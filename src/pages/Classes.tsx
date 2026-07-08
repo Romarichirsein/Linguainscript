@@ -9,7 +9,9 @@ import {
   Briefcase,
   AlertCircle,
   CheckCircle,
-  X
+  X,
+  Pencil,
+  Trash2
 } from "lucide-react";
 
 export const Classes: React.FC = () => {
@@ -19,9 +21,14 @@ export const Classes: React.FC = () => {
     classes,
     addCampus,
     updateCampus,
+    deleteCampus,
     addTeacher,
+    updateTeacher,
+    deleteTeacher,
     addClass,
     updateClass,
+    deleteClass,
+    updateLanguage,
     uniqueLanguages,
     currentUser,
     schoolConfig,
@@ -30,14 +37,17 @@ export const Classes: React.FC = () => {
 
   const [activeSegment, setActiveSegment] = useState<"classes" | "teachers" | "campuses" | "languages">("classes");
 
-  // State variables for custom language creation
+  // State variables for custom language creation & editing
   const [newLanguageName, setNewLanguageName] = useState("");
   const [isSubmittingLanguage, setIsSubmittingLanguage] = useState(false);
+  const [editingLanguage, setEditingLanguage] = useState<string | null>(null);
+  const [languageRenameVal, setLanguageRenameVal] = useState("");
 
   // Standard Modals controls
   const [showCampusModal, setShowCampusModal] = useState(false);
   const [campusName, setCampusName] = useState("");
   const [campusAddress, setCampusAddress] = useState("");
+  const [editingCampus, setEditingCampus] = useState<Campus | null>(null);
 
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [teacherName, setTeacherName] = useState("");
@@ -45,6 +55,7 @@ export const Classes: React.FC = () => {
   const [teacherEmail, setTeacherEmail] = useState("");
   const [teacherLangs, setTeacherLangs] = useState<string[]>([]);
   const [teacherCampusId, setTeacherCampusId] = useState("");
+  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
 
   const [showClassModal, setShowClassModal] = useState(false);
   const [classLang, setClassLang] = useState("Allemand");
@@ -55,6 +66,7 @@ export const Classes: React.FC = () => {
   const [classMaxStudents, setClassMaxStudents] = useState("20");
   const [classStartDate, setClassStartDate] = useState("2026-06-01");
   const [classEndDate, setClassEndDate] = useState("2027-06-01");
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -126,6 +138,131 @@ export const Classes: React.FC = () => {
       alert("Erreur lors de la création de la classe : " + (err.message || err));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateCampusSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCampus || !editingCampus.name || !editingCampus.address) return;
+    setIsSubmitting(true);
+    try {
+      await updateCampus(editingCampus.id, editingCampus.name, editingCampus.address, editingCampus.isActive);
+      setEditingCampus(null);
+    } catch (err: any) {
+      console.error("Erreur lors de la modification du campus:", err);
+      alert("Erreur lors de la modification du campus : " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteCampusClick = async (id: string) => {
+    if (!window.confirm("⚠️ Voulez-vous vraiment supprimer ce campus ? Cette action est irréversible.")) {
+      return;
+    }
+    try {
+      await deleteCampus(id);
+    } catch (err: any) {
+      alert("Erreur lors de la suppression : " + (err.message || err));
+    }
+  };
+
+  const handleUpdateTeacherSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeacher || !editingTeacher.name || !editingTeacher.campusId || editingTeacher.languages.length === 0) {
+      alert("Veuillez remplir les informations obligatoires.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await updateTeacher(
+        editingTeacher.id,
+        editingTeacher.name,
+        editingTeacher.phone,
+        editingTeacher.email,
+        editingTeacher.languages,
+        editingTeacher.campusId,
+        editingTeacher.isActive
+      );
+      setEditingTeacher(null);
+    } catch (err: any) {
+      console.error("Erreur lors de la modification du professeur:", err);
+      alert("Erreur lors de la modification du professeur : " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteTeacherClick = async (id: string) => {
+    if (!window.confirm("⚠️ Voulez-vous vraiment supprimer ce professeur ? Cette action est irréversible.")) {
+      return;
+    }
+    try {
+      await deleteTeacher(id);
+    } catch (err: any) {
+      alert("Erreur lors de la suppression : " + (err.message || err));
+    }
+  };
+
+  const handleUpdateClassSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClass || !editingClass.teacherId || !editingClass.campusId) {
+      alert("Veuillez assigner un Professeur et un Campus.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await updateClass(editingClass.id, {
+        language: editingClass.language,
+        level: editingClass.level,
+        period: editingClass.period,
+        teacherId: editingClass.teacherId,
+        campusId: editingClass.campusId,
+        maxStudents: editingClass.maxStudents,
+        startDate: editingClass.startDate,
+        endDate: editingClass.endDate,
+        isActive: editingClass.isActive
+      });
+      setEditingClass(null);
+    } catch (err: any) {
+      console.error("Erreur lors de la modification de la classe:", err);
+      alert("Erreur lors de la modification de la classe : " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteClassClick = async (id: string) => {
+    if (!window.confirm("⚠️ Voulez-vous vraiment supprimer cette classe ? Cette action est irréversible.")) {
+      return;
+    }
+    try {
+      await deleteClass(id);
+    } catch (err: any) {
+      alert("Erreur lors de la suppression : " + (err.message || err));
+    }
+  };
+
+  const handleRenameLanguageSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLanguage || !languageRenameVal.trim()) return;
+    
+    const cleanNew = languageRenameVal.trim();
+    if (uniqueLanguages.map(l => l.toLowerCase()).includes(cleanNew.toLowerCase()) && cleanNew.toLowerCase() !== editingLanguage.toLowerCase()) {
+      alert("Cette langue existe déjà.");
+      return;
+    }
+
+    setIsSubmittingLanguage(true);
+    try {
+      await updateLanguage(editingLanguage, cleanNew);
+      setEditingLanguage(null);
+      setLanguageRenameVal("");
+    } catch (err: any) {
+      console.error("Erreur lors du renommage de la langue:", err);
+      alert("Erreur lors du renommage de la langue : " + (err.message || err));
+    } finally {
+      setIsSubmittingLanguage(false);
     }
   };
 
@@ -292,15 +429,35 @@ export const Classes: React.FC = () => {
                         Horaires : {cls.period}
                       </span>
                     </div>
-                    {ratio >= 1 ? (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
-                        Complet
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded">
-                        Libre
-                      </span>
-                    )}
+                    <div className="flex flex-col items-end gap-1.5">
+                      {ratio >= 1 ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
+                          Complet
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded">
+                          Libre
+                        </span>
+                      )}
+                      {(currentUser?.role === UserRole.DIRECTRICE || currentUser?.role === UserRole.SUPERADMIN || currentUser?.role === UserRole.SECRETAIRE) && (
+                        <div className="flex gap-1 mt-0.5">
+                          <button
+                            onClick={() => setEditingClass(cls)}
+                            className="text-slate-405 hover:text-blue-600 p-1 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                            title="Modifier la classe"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClassClick(cls.id)}
+                            className="text-slate-405 hover:text-red-600 p-1 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                            title="Supprimer la classe"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="text-xs text-slate-600 space-y-2 pt-1 border-t border-slate-50">
@@ -368,14 +525,37 @@ export const Classes: React.FC = () => {
                   key={teach.id}
                   className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4"
                 >
-                  <div className="flex gap-3.5 items-center">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 font-extrabold text-slate-700 uppercase">
-                      Pr
+                  <div className="flex justify-between items-start">
+                    <div className="flex gap-3.5 items-center">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 font-extrabold text-slate-700 uppercase">
+                        Pr
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                          {teach.name}
+                          <span className={`inline-block h-2 w-2 rounded-full ${teach.isActive ?? true ? "bg-emerald-500" : "bg-slate-300"}`} title={teach.isActive ?? true ? "Actif" : "Inactif"} />
+                        </h4>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">{teach.phone}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">{teach.name}</h4>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">{teach.phone}</p>
-                    </div>
+                    {(currentUser?.role === UserRole.DIRECTRICE || currentUser?.role === UserRole.SUPERADMIN) && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setEditingTeacher(teach)}
+                          className="text-slate-405 hover:text-blue-600 p-1 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                          title="Modifier le professeur"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTeacherClick(teach.id)}
+                          className="text-slate-405 hover:text-red-600 p-1 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                          title="Supprimer le professeur"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-xs text-slate-600 space-y-1.5 pt-2 border-t border-slate-100">
@@ -424,12 +604,30 @@ export const Classes: React.FC = () => {
                     <MapPin className="h-5 w-5" />
                   </span>
                   <div className="flex-1 space-y-1 text-xs text-slate-600">
-                    <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                      {camp.name}
-                      {camp.isActive && (
-                        <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    <div className="flex justify-between items-start">
+                      <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        {camp.name}
+                        <span className={`inline-flex h-2 w-2 rounded-full ${camp.isActive ?? true ? "bg-emerald-500" : "bg-slate-300"}`} title={camp.isActive ?? true ? "Actif" : "Inactif"} />
+                      </h4>
+                      {(currentUser?.role === UserRole.DIRECTRICE || currentUser?.role === UserRole.SUPERADMIN) && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setEditingCampus(camp)}
+                            className="text-slate-405 hover:text-blue-600 p-1 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                            title="Modifier le campus"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCampusClick(camp.id)}
+                            className="text-slate-405 hover:text-red-600 p-1 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                            title="Supprimer le campus"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       )}
-                    </h4>
+                    </div>
                     <p className="text-slate-500 font-medium">{camp.address}</p>
                     <p className="pt-2 border-t border-slate-50 flex justify-between text-[11px] text-slate-450 mt-2">
                       <span>Inscriptions autorisées</span>
@@ -492,14 +690,27 @@ export const Classes: React.FC = () => {
                     </div>
                   </div>
                   {!isDefault && (currentUser?.role === UserRole.DIRECTRICE || currentUser?.role === UserRole.SUPERADMIN) && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteLanguage(lang)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg p-1.5 transition inline-flex items-center cursor-pointer"
-                      title="Supprimer la langue"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingLanguage(lang);
+                          setLanguageRenameVal(lang);
+                        }}
+                        className="text-slate-450 hover:text-blue-600 hover:bg-slate-50 rounded-lg p-1.5 transition inline-flex items-center cursor-pointer"
+                        title="Renommer la langue"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLanguage(lang)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg p-1.5 transition inline-flex items-center cursor-pointer"
+                        title="Supprimer la langue"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -830,6 +1041,415 @@ export const Classes: React.FC = () => {
                   className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? "Enregistrement..." : "Enregistrer l'Enseignant"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* EDIT CAMPUS MODAL FORM */}
+      {editingCampus && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-slate-800">Modifier le Campus</h3>
+              <button onClick={() => setEditingCampus(null)} className="rounded p-1 text-slate-400 hover:bg-slate-100">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateCampusSubmit} className="space-y-4 text-xs text-slate-700">
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Nom complet du Campus *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Campus Sud"
+                  value={editingCampus.name}
+                  onChange={e => setEditingCampus({ ...editingCampus, name: e.target.value })}
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-850"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Adresse civique exacte *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Boulevard de la Réunification, Yaoundé"
+                  value={editingCampus.address}
+                  onChange={e => setEditingCampus({ ...editingCampus, address: e.target.value })}
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-850"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="campus-active-checkbox"
+                  checked={editingCampus.isActive}
+                  onChange={e => setEditingCampus({ ...editingCampus, isActive: e.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="campus-active-checkbox" className="font-semibold text-slate-650">Campus Actif / Ouvert</label>
+              </div>
+
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-50">
+                <button
+                  type="button"
+                  onClick={() => setEditingCampus(null)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-55"
+                >
+                  {isSubmitting ? "Enregistrement..." : "Enregistrer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT TEACHER MODAL FORM */}
+      {editingTeacher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-slate-800">Modifier l'Enseignant</h3>
+              <button onClick={() => setEditingTeacher(null)} className="rounded p-1 text-slate-400 hover:bg-slate-100">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateTeacherSubmit} className="space-y-4 text-xs text-slate-700">
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Nom complet de l'Enseignant *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Prof. Marc Fabre"
+                  value={editingTeacher.name}
+                  onChange={e => setEditingTeacher({ ...editingTeacher, name: e.target.value })}
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-850"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Téléphone de contact *</label>
+                <input
+                  type="tel"
+                  placeholder="Ex: +237 691 112 233"
+                  value={editingTeacher.phone}
+                  onChange={e => setEditingTeacher({ ...editingTeacher, phone: e.target.value })}
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-850"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Adresse email professionnelle</label>
+                <input
+                  type="email"
+                  placeholder="Ex: m.fabre@lingua.com"
+                  value={editingTeacher.email || ""}
+                  onChange={e => setEditingTeacher({ ...editingTeacher, email: e.target.value })}
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-850"
+                />
+              </div>
+
+              {/* Languages checkboxes spec list */}
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Langues enseignées (Choisir ou ajouter) *</label>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {uniqueLanguages.map(lang => {
+                    const active = editingTeacher.languages.includes(lang);
+                    return (
+                      <button
+                        type="button"
+                        key={lang}
+                        onClick={() => {
+                          const updated = active
+                            ? editingTeacher.languages.filter(l => l !== lang)
+                            : [...editingTeacher.languages, lang];
+                          setEditingTeacher({ ...editingTeacher, languages: updated });
+                        }}
+                        className={`rounded-xl border px-3 py-1.5 text-center text-[11px] font-bold cursor-pointer transition ${
+                          active
+                            ? "border-blue-500 bg-blue-50 text-blue-600"
+                            : "border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {lang}
+                      </button>
+                    );
+                  })}
+                  <input
+                    type="text"
+                    placeholder="Autre langue..."
+                    className="rounded-xl border border-slate-200 px-3 py-1 text-[11px] outline-none focus:border-blue-500 w-32"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const val = e.currentTarget.value.trim();
+                        if (val && !editingTeacher.languages.includes(val)) {
+                          setEditingTeacher({ ...editingTeacher, languages: [...editingTeacher.languages, val] });
+                          e.currentTarget.value = "";
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Campus attachment */}
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Campus d'affectation principal *</label>
+                <select
+                  value={editingTeacher.campusId}
+                  onChange={e => setEditingTeacher({ ...editingTeacher, campusId: e.target.value })}
+                  className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
+                >
+                  <option value="">-- Choisir un campus --</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="teacher-active-checkbox"
+                  checked={editingTeacher.isActive ?? true}
+                  onChange={e => setEditingTeacher({ ...editingTeacher, isActive: e.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="teacher-active-checkbox" className="font-semibold text-slate-650">Enseignant Actif</label>
+              </div>
+
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-50">
+                <button
+                  type="button"
+                  onClick={() => setEditingTeacher(null)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-55"
+                >
+                  {isSubmitting ? "Enregistrement..." : "Enregistrer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT CLASS MODAL FORM */}
+      {editingClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-slate-800">Modifier la Classe</h3>
+              <button onClick={() => setEditingClass(null)} className="rounded p-1 text-slate-400 hover:bg-slate-100">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateClassSubmit} className="space-y-4 text-xs text-slate-700">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Lang Select */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-650">Langue du cours</label>
+                  <input
+                    type="text"
+                    list="language-options-edit"
+                    value={editingClass.language}
+                    onChange={e => setEditingClass({ ...editingClass, language: e.target.value })}
+                    placeholder="Saisir ou choisir..."
+                    className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
+                  />
+                  <datalist id="language-options-edit">
+                    {uniqueLanguages.map(lang => (
+                      <option key={lang} value={lang} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {/* Level Select */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-650">Niveau (CECRL)</label>
+                  <select
+                    value={editingClass.level}
+                    onChange={e => setEditingClass({ ...editingClass, level: e.target.value as any })}
+                    className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
+                  >
+                    <option value="A1">Débutant (A1)</option>
+                    <option value="A2">Élémentaire (A2)</option>
+                    <option value="B1">Intermédiaire (B1)</option>
+                    <option value="B2">Indépendant (B2)</option>
+                    <option value="C1">Autonome (C1)</option>
+                    <option value="C2">Maîtrise (C2)</option>
+                  </select>
+                </div>
+
+                {/* Period Select */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-650">Créneau horaire</label>
+                  <select
+                    value={editingClass.period}
+                    onChange={e => setEditingClass({ ...editingClass, period: e.target.value as any })}
+                    className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
+                  >
+                    <option value="8h">Matin (8h)</option>
+                    <option value="12h">Midi (12h)</option>
+                    <option value="15h">Après-midi (15h)</option>
+                    <option value="17h">Soirée (17h)</option>
+                  </select>
+                </div>
+
+                {/* Target Max */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-650">Capacité sièges (Max Éléves)</label>
+                  <input
+                    type="number"
+                    required
+                    value={editingClass.maxStudents}
+                    onChange={e => setEditingClass({ ...editingClass, maxStudents: parseInt(e.target.value) || 0 })}
+                    className="rounded-xl border border-slate-200 p-2.5 text-slate-850"
+                  />
+                </div>
+
+                {/* Campus Target */}
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <label className="font-semibold text-slate-650">Campus d'affectation</label>
+                  <select
+                    value={editingClass.campusId}
+                    onChange={e => setEditingClass({ ...editingClass, campusId: e.target.value })}
+                    className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
+                  >
+                    {campuses.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Teacher Assign */}
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <label className="font-semibold text-slate-650">Enseignant désigné</label>
+                  <select
+                    value={editingClass.teacherId}
+                    onChange={e => setEditingClass({ ...editingClass, teacherId: e.target.value })}
+                    className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
+                  >
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.languages.join(", ")})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Dates picker */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-650">Date de début session</label>
+                  <input
+                    type="date"
+                    required
+                    value={editingClass.startDate}
+                    onChange={e => setEditingClass({ ...editingClass, startDate: e.target.value })}
+                    className="rounded-xl border border-slate-200 p-2 bg-white"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-slate-650">Date de fin académique</label>
+                  <input
+                    type="date"
+                    required
+                    value={editingClass.endDate}
+                    onChange={e => setEditingClass({ ...editingClass, endDate: e.target.value })}
+                    className="rounded-xl border border-slate-200 p-2 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="class-active-checkbox"
+                  checked={editingClass.isActive}
+                  onChange={e => setEditingClass({ ...editingClass, isActive: e.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="class-active-checkbox" className="font-semibold text-slate-650">Classe Active</label>
+              </div>
+
+              {/* Actions submit */}
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-50">
+                <button
+                  type="button"
+                  onClick={() => setEditingClass(null)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-55"
+                >
+                  {isSubmitting ? "Enregistrement..." : "Enregistrer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT LANGUAGE MODAL FORM */}
+      {editingLanguage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-slate-800">Renommer la langue "{editingLanguage}"</h3>
+              <button onClick={() => setEditingLanguage(null)} className="rounded p-1 text-slate-400 hover:bg-slate-100">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRenameLanguageSubmit} className="space-y-4 text-xs text-slate-700">
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Nouveau nom de la langue *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Espagnol"
+                  value={languageRenameVal}
+                  onChange={e => setLanguageRenameVal(e.target.value)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-850"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-50">
+                <button
+                  type="button"
+                  onClick={() => setEditingLanguage(null)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingLanguage}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-55"
+                >
+                  {isSubmittingLanguage ? "Enregistrement..." : "Renommer"}
                 </button>
               </div>
             </form>
