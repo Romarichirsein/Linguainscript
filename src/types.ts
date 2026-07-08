@@ -13,6 +13,7 @@ export interface School {
   subStatus: "active" | "expired";
   subExpiresAt: string; // ISO String
   createdAt: string;
+  status?: "active" | "blocked";
 }
 
 export interface UserProfile {

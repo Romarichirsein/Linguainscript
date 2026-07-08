@@ -173,11 +173,15 @@ export async function generateCertificate(
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(12);
     doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-    const bodyLines = doc.splitTextToSize(formattedBody, 220);
-    bodyLines.forEach((line: string) => {
-      doc.text(line, cx, headerY, { align: "center" });
-      headerY += 7.5;
+
+    // Split into lines then pass as array to jsPDF — single call ensures true block centering
+    const bodyLines = doc.splitTextToSize(formattedBody, 230);
+    doc.text(bodyLines, cx, headerY, {
+      align: "center",
+      lineHeightFactor: 1.7,
+      maxWidth: 230
     });
+    headerY += bodyLines.length * 7.5 + 2;
 
     // Class details (optional)
     if (selectedClass) {

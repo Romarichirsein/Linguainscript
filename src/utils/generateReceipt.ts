@@ -117,16 +117,16 @@ export async function generateReceipt(
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text(selectedCampus ? selectedCampus.name : "Campus Principal", 144, 15, { align: "right" });
+    doc.text(selectedCampus ? selectedCampus.name : "Campus Principal", 138, 15, { align: "right" });
     
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(71, 85, 105);
-    doc.text(selectedCampus ? selectedCampus.address : "Douala, Cameroun", 144, 19, { align: "right" });
+    doc.text(selectedCampus ? selectedCampus.address : "Douala, Cameroun", 138, 19, { align: "right" });
     
     // Add Email contact of the school if configured
     if (schoolConfig?.id) {
-      doc.text(`Contact: info@linguainscript.com`, 144, 23, { align: "right" });
+      doc.text(`Contact: info@linguainscript.com`, 138, 23, { align: "right" });
     }
 
     // Divider

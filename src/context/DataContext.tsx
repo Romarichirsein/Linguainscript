@@ -2451,6 +2451,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearTimeout(timer);
   }, [currentUser, currentSchool, systemNotifications.length]);
 
+  // Real-time access check: if the school status changes to "blocked", log out immediately
+  useEffect(() => {
+    if (!currentUser || currentUser.role === UserRole.SUPERADMIN || !currentSchool) return;
+
+    if (currentSchool.status === "blocked") {
+      console.warn(`School ${currentSchool.name} is blocked. Auto-logging out user.`);
+      alert("Votre établissement a été suspendu par le super administrateur. Accès refusé.");
+      logout();
+    }
+  }, [currentUser, currentSchool]);
+
   const createSystemNotification = async (notifData: Omit<SystemNotification, "id" | "createdAt" | "read">) => {
     const id = `notif_${Date.now()}`;
     const newNotif: SystemNotification = {

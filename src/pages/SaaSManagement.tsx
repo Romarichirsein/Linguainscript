@@ -115,6 +115,7 @@ export function SaaSManagement() {
   const [editDirEmail, setEditDirEmail] = useState("");
   const [editSubType, setEditSubType] = useState<"basique" | "premium" | "integral">("basique");
   const [editSubExpiresAt, setEditSubExpiresAt] = useState("");
+  const [editStatus, setEditStatus] = useState<"active" | "blocked">("active");
   const [isSavingSchool, setIsSavingSchool] = useState(false);
 
   const handleOpenEditSchool = (school: School) => {
@@ -124,6 +125,7 @@ export function SaaSManagement() {
     setEditDirEmail(school.directriceEmail);
     setEditSubType(school.subType);
     setEditSubExpiresAt(school.subExpiresAt.split("T")[0]);
+    setEditStatus(school.status || "active");
   };
 
   const handleUpdateSchool = async (e: React.FormEvent) => {
@@ -136,7 +138,8 @@ export function SaaSManagement() {
         directriceName: editDirName,
         directriceEmail: editDirEmail.trim().toLowerCase(),
         subType: editSubType,
-        subExpiresAt: new Date(editSubExpiresAt).toISOString()
+        subExpiresAt: new Date(editSubExpiresAt).toISOString(),
+        status: editStatus
       });
       setEditSchool(null);
     } catch (err: any) {
@@ -765,7 +768,14 @@ export function SaaSManagement() {
                     return (
                       <tr key={school.id} className={`${isSimulationNow ? "bg-amber-50/40" : "hover:bg-slate-50/50"} transition-colors`}>
                         <td className="py-3">
-                          <span className="font-sans font-bold text-slate-800 block text-xs">{school.name}</span>
+                          <span className="font-sans font-bold text-slate-800 block text-xs">
+                            {school.name}
+                            {school.status === "blocked" && (
+                              <span className="ml-2 inline-block rounded bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[9px] font-bold">
+                                Bloqué
+                              </span>
+                            )}
+                          </span>
                           <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
                             ID: <strong className="text-slate-600">{school.id}</strong> · {studentCount} élève{studentCount > 1 ? 's' : ''} · {secretaryCount} secrétaire{secretaryCount > 1 ? 's' : ''}
                           </span>
@@ -804,6 +814,34 @@ export function SaaSManagement() {
                               }`}
                             >
                               💻 <span className="hidden xl:inline ml-1 text-xs">Imiter</span>
+                            </button>
+
+                            <button
+                              onClick={async () => {
+                                const newStatus = school.status === "blocked" ? "active" : "blocked";
+                                const label = newStatus === "blocked" ? "bloquer" : "réactiver";
+                                if (!window.confirm(`Confirmer la décision de ${label} l'accès de « ${school.name} » ?`)) return;
+                                try {
+                                  await updateSchool(school.id, { status: newStatus });
+                                } catch (e: any) {
+                                  alert(`Erreur : ${e.message}`);
+                                }
+                              }}
+                              title={school.status === "blocked" ? "Réactiver l'accès de l'école" : "Bloquer l'accès de l'école"}
+                              className={`rounded-lg p-1.5 border cursor-pointer transition-all ${
+                                school.status === "blocked"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                  : "bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100"
+                              }`}
+                            >
+                              {school.status === "blocked" ? (
+                                <ToggleLeft className="h-3.5 w-3.5" />
+                              ) : (
+                                <ToggleLeft className="h-3.5 w-3.5" />
+                              )}
+                              <span className="hidden xl:inline ml-1 text-xs font-bold">
+                                {school.status === "blocked" ? "Débloquer" : "Bloquer"}
+                              </span>
                             </button>
 
                             <button
@@ -1741,6 +1779,18 @@ export function SaaSManagement() {
                   onChange={e => setEditSubExpiresAt(e.target.value)}
                   className="rounded-xl border border-slate-200 p-2.5 text-sm"
                 />
+              </div>
+
+              <div className="flex flex-col gap-1.5 col-span-2">
+                <label className="font-semibold text-slate-650">Statut de l'accès *</label>
+                <select
+                  value={editStatus}
+                  onChange={e => setEditStatus(e.target.value as any)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-sm bg-white font-bold"
+                >
+                  <option value="active" className="text-emerald-650 font-semibold">Actif (Accès autorisé)</option>
+                  <option value="blocked" className="text-rose-650 font-semibold">Bloqué (Accès suspendu)</option>
+                </select>
               </div>
 
               <div className="col-span-2 flex gap-2 pt-3">
