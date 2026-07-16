@@ -329,7 +329,9 @@ const hashRouteToTabMap: Record<string, string> = {
 };
 
 function DashboardContainer() {
-  const { firebaseUser, loading, currentUser, isLocalSession, currentPlan, schoolSlug } = useData();
+  const { firebaseUser, loading, currentUser, isLocalSession, currentPlan, schoolSlug, currentSchool, logout } = useData();
+  const isSchoolBlocked = currentSchool?.status === "blocked";
+  const isSchoolExpired = currentSchool && currentSchool.subExpiresAt ? new Date(currentSchool.subExpiresAt) < new Date() : false;
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -363,8 +365,7 @@ function DashboardContainer() {
     }
   };
 
-  // Determine if demo was EXPLICITLY requested vs involuntary offline
-  const isDemoLogin = typeof window !== "undefined" && localStorage.getItem("lingua_isDemoLogin") === "true";
+
 
   // Auto redirect Super Admin to 'saas' view on startup if they are at root
   useEffect(() => {
@@ -482,29 +483,37 @@ function DashboardContainer() {
           setFocusMode={setFocusMode}
         />
 
-        {isLocalSession && !isDemoLogin && (
-          <div className="bg-red-600 text-white font-sans text-xs px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md z-10 border-b border-red-700/30">
-            <div className="flex items-center gap-2">
-              <span className="text-sm shrink-0">⚠️</span>
-              <p className="font-semibold leading-relaxed">
-                <strong>Mode Hors-Ligne :</strong> La connexion à Firebase a échoué lors de cette session. Vos données ne seront pas sauvegardées. Vérifiez votre connexion internet puis reconnectez-vous.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                localStorage.removeItem("lingua_isDemoLogin");
-                localStorage.removeItem("lingua_isLocalSession");
-                window.location.reload();
-              }}
-              className="bg-white hover:bg-red-50 text-red-700 px-3.5 py-1.5 rounded-xl text-[10px] font-bold uppercase transition tracking-wider shrink-0 text-center whitespace-nowrap"
-            >
-              🔄 Tenter de reconnecter
-            </button>
-          </div>
-        )}
+
 
         {/* Dynamic Inner view */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-6">
+        <main className="relative flex-1 overflow-y-auto p-4 md:p-5 lg:p-6">
+          {currentUser && currentUser.role !== "superadmin" && (isSchoolBlocked || isSchoolExpired) && (
+            <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex flex-col items-center justify-center text-center p-8 select-none">
+              <div className="max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-8 space-y-6">
+                <div className="w-16 h-16 bg-rose-100 dark:bg-rose-950/50 rounded-full flex items-center justify-center mx-auto">
+                  <AlertCircle className="h-8 w-8 text-rose-600 dark:text-rose-455" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {isSchoolBlocked ? "Accès Établissement Suspendu" : "Abonnement Expiré"}
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-450 dark:text-slate-400 leading-relaxed">
+                    {isSchoolBlocked 
+                      ? "Votre établissement a été suspendu par le super administrateur. Toutes les fonctionnalités de facturation et de gestion d'élèves ont été bloquées." 
+                      : "L'abonnement annuel ou mensuel de votre établissement a expiré. Veuillez renouveler votre formule pour continuer à utiliser la plateforme."}
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    onClick={() => logout()}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-850 dark:hover:bg-slate-700 text-white py-2.5 text-xs font-bold transition cursor-pointer"
+                  >
+                    Retour à la page de connexion
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="mx-auto max-w-7xl">
             {renderActiveView()}
           </div>
@@ -533,7 +542,6 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
-
 // Route guard to enforce school scoping
 function SchoolRouteGuard({ children }: { children: React.ReactNode }) {
   const { schoolSlug: urlSlug } = useParams();
@@ -541,13 +549,13 @@ function SchoolRouteGuard({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!currentUser || !urlSlug) return;
+    if (!currentUser || !urlSlug || schools.length === 0) return;
 
     if (currentUser.role !== "superadmin") {
       const mySchool = schools.find(s => s.id === currentUser.schoolId);
-      const mySlug = mySchool ? getSchoolSlug(mySchool.name) : "school-demo";
+      const mySlug = mySchool ? getSchoolSlug(mySchool.name) : null;
       
-      if (urlSlug !== mySlug) {
+      if (mySlug && urlSlug !== mySlug) {
         navigate(`/${mySlug}/tableau-de-bord`, { replace: true });
       } else if (activeSchoolId !== currentUser.schoolId) {
         setActiveSchoolId(currentUser.schoolId);
@@ -564,6 +572,7 @@ function SchoolRouteGuard({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
+
 
 // Handle login page access when already authenticated
 function LoginScreenWrapper() {

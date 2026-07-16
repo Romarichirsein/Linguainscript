@@ -53,7 +53,7 @@ interface DataContextType {
   isLocalSession: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithPassword: (email: string, password: string) => Promise<void>;
-  loginAsDemoUser: (email: string, name: string, role: UserRole, schoolId: string | null) => Promise<void>;
+
   logout: () => Promise<void>;
   availableUsers: UserProfile[];
   allUsers: UserProfile[];
@@ -251,11 +251,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [loading, setLoading] = useState(true);
 
-  // Flag to track local/demo sessions where Firebase Auth is not used
-  // This prevents onAuthStateChanged from overriding manually set mock users
-  // NOTE: We only restore the local session flag from localStorage if it was set by an EXPLICIT demo login.
-  // Transient network errors should NOT permanently lock the app in offline mode across reloads.
-  const [isLocalSession, setIsLocalSession] = useState(localStorage.getItem("lingua_isDemoLogin") === "true");
+  // isLocalSession is kept as a constant false — demo mode is disabled
+  const isLocalSession = false;
 
   useEffect(() => {
     try {
@@ -299,14 +296,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [schoolConfig, setSchoolConfig] = useState<SchoolConfig | null>(null);
 
   // Computed tenant specific slices of data
-  const campuses = rawCampuses.filter(item => ((item as any).schoolId || "school_demo") === activeSchoolId);
-  const teachers = rawTeachers.filter(item => ((item as any).schoolId || "school_demo") === activeSchoolId);
-  const classes = rawClasses.filter(item => ((item as any).schoolId || "school_demo") === activeSchoolId);
-  const students = rawStudents.filter(item => ((item as any).schoolId || "school_demo") === activeSchoolId);
-  const payments = rawPayments.filter(item => ((item as any).schoolId || "school_demo") === activeSchoolId);
-  const auditLogs = rawAuditLogs.filter(item => ((item as any).schoolId || "school_demo") === activeSchoolId);
-  const waitlist = rawWaitlist.filter(item => ((item as any).schoolId || "school_demo") === activeSchoolId);
-  const reminders = rawReminders.filter(item => ((item as any).schoolId || "school_demo") === activeSchoolId);
+  const campuses = rawCampuses.filter(item => (item as any).schoolId === activeSchoolId);
+  const teachers = rawTeachers.filter(item => (item as any).schoolId === activeSchoolId);
+  const classes = rawClasses.filter(item => (item as any).schoolId === activeSchoolId);
+  const students = rawStudents.filter(item => (item as any).schoolId === activeSchoolId);
+  const payments = rawPayments.filter(item => (item as any).schoolId === activeSchoolId);
+  const auditLogs = rawAuditLogs.filter(item => (item as any).schoolId === activeSchoolId);
+  const waitlist = rawWaitlist.filter(item => (item as any).schoolId === activeSchoolId);
+  const reminders = rawReminders.filter(item => (item as any).schoolId === activeSchoolId);
 
   // Current connected school info
   const currentSchool = schools.find(s => s.id === activeSchoolId) || null;
@@ -336,8 +333,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 1. Connection test & Auth subscriber
   useEffect(() => {
     const testConnection = async () => {
-      // Skip connection test in local session mode
-      if (isLocalSession) return;
       try {
         // Race against a 6s timeout to tolerate slow mobile/network connections
         const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Connection test timeout")), 6000));
@@ -350,13 +345,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     testConnection();
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      // If we're in an explicit local/demo session, skip database queries and keep the loaded local profile
-      if (isLocalSession) {
-        setFirebaseUser(user);
-        setLoading(false);
-        return;
-      }
-
       setFirebaseUser(user);
       if (user) {
         const userRef = doc(db, "users", user.uid);
@@ -487,32 +475,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               campusId: null,
               schoolId: null
             };
-          } else if (cleanEmail === "directrice.integral@gmail.com") {
-            fallbackProfile = {
-              id: "directrice_integral",
-              name: "Thérèse Ngono (Directrice)",
-              email: cleanEmail,
-              role: UserRole.DIRECTRICE,
-              campusId: null,
-              schoolId: "school_integral"
-            };
-          } else if (cleanEmail === "secretaire.demo@gmail.com") {
-            fallbackProfile = {
-              id: "secretaire_demo",
-              name: "Sarah Kiman (Secrétaire)",
-              email: cleanEmail,
-              role: UserRole.SECRETAIRE,
-              campusId: "campus_01",
-              schoolId: "school_demo"
-            };
           } else {
             fallbackProfile = {
               id: user.uid,
               name: user.displayName || "Utilisateur Local",
               email: cleanEmail,
               role: UserRole.SECRETAIRE,
-              campusId: "campus_01",
-              schoolId: "school_demo"
+              campusId: null,
+              schoolId: null
             };
           }
           setCurrentUser(fallbackProfile);
@@ -530,11 +500,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (currentUser) {
       if (currentUser.role === UserRole.SUPERADMIN) {
-        if (!activeSchoolId) {
-          setActiveSchoolId("school_demo");
-        }
+        // SuperAdmin has no schoolId — keep activeSchoolId as null until they select a school
       } else {
-        setActiveSchoolId(currentUser.schoolId || "school_demo");
+        setActiveSchoolId(currentUser.schoolId || null);
       }
     } else {
       setActiveSchoolId(null);
@@ -542,52 +510,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser]);
 
   // Default schools used for both Firestore seeding and local fallback
-  const getDefaultSchools = (): School[] => [
-    {
-      id: "school_demo",
-      name: "LinguaInscript Douala",
-      directriceEmail: "romarichirsein@gmail.com",
-      directriceName: "Romaric Hirsein",
-      subType: "integral",
-      subStatus: "active",
-      subExpiresAt: "2027-12-31T23:59:59.000Z",
-      createdAt: new Date().toISOString(),
-      status: "active"
-    },
-    {
-      id: "school_basique",
-      name: "Centre Moyen de l'Adamaoua",
-      directriceEmail: "directrice.basique@gmail.com",
-      directriceName: "Josiane Bello",
-      subType: "basique",
-      subStatus: "active",
-      subExpiresAt: "2026-10-31T23:59:59.000Z",
-      createdAt: new Date().toISOString(),
-      status: "active"
-    },
-    {
-      id: "school_premium",
-      name: "African English Academy",
-      directriceEmail: "directrice.premium@gmail.com",
-      directriceName: "Amina Moukoko",
-      subType: "premium",
-      subStatus: "active",
-      subExpiresAt: "2026-11-30T23:59:59.000Z",
-      createdAt: new Date().toISOString(),
-      status: "active"
-    },
-    {
-      id: "school_integral",
-      name: "Polyglot Hub Yaoundé",
-      directriceEmail: "directrice.integral@gmail.com",
-      directriceName: "Thérèse Ngono",
-      subType: "integral",
-      subStatus: "active",
-      subExpiresAt: "2027-01-15T23:59:59.000Z",
-      createdAt: new Date().toISOString(),
-      status: "active"
-    }
-  ];
+  const getDefaultSchools = (): School[] => [];
 
   // Sync schools list
   useEffect(() => {
@@ -597,13 +520,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // LOCAL SESSION: seed schools & users from mock data directly into state
-    if (isLocalSession) {
-      console.log("[Local Session] Loading default schools and mock users into local state.");
-      setSchools(getDefaultSchools());
-      setAllUsers(mockUsers.map(u => ({ ...u, schoolId: u.schoolId || "school_demo" })));
-      return;
-    }
+
 
     const unsubSchools = onSnapshot(collection(db, "schools"), async (snapshot) => {
       const items = snapshot.docs.map(d => mapDoc<School>(d));
@@ -669,21 +586,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // LOCAL SESSION: load all mock data directly into state, skip Firestore listeners
-    if (isLocalSession) {
-      console.log("[Local Session] Loading mock data into local state (Firestore bypassed).");
-      const currentSchoolId = activeSchoolId || "school_demo";
-      setRawCampuses(mockCampuses.map(c => ({ ...c, schoolId: currentSchoolId } as any)));
-      setRawTeachers(mockTeachers.map(t => ({ ...t, schoolId: currentSchoolId } as any)));
-      setRawClasses(mockClasses.map(c => ({ ...c, schoolId: currentSchoolId } as any)));
-      setRawStudents(mockStudents.map(s => ({ ...s, schoolId: currentSchoolId } as any)));
-      setRawPayments(mockPayments.map(p => ({ ...p, schoolId: currentSchoolId } as any)));
-      setRawAuditLogs(mockAuditLogs.map(a => ({ ...a, schoolId: currentSchoolId } as any)));
-      setRawWaitlist(mockWaitlist.map(w => ({ ...w, schoolId: currentSchoolId } as any)));
-      setRawReminders([]);
-      setSchoolConfig(getDefaultSchoolConfig(currentSchoolId));
-      return;
-    }
+
 
     const unsubCampuses = onSnapshot(collection(db, "campuses"), async (snapshot) => {
       const items = snapshot.docs.map(d => mapDoc<Campus>(d));
@@ -1151,6 +1054,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (schoolData.status === "blocked") {
             throw new Error("Votre établissement a été suspendu par le super administrateur. Veuillez régulariser votre situation.");
           }
+          if (new Date(schoolData.subExpiresAt) < new Date()) {
+            throw new Error("L'abonnement de votre établissement a expiré. Accès bloqué. Veuillez contacter le super administrateur.");
+          }
         }
       }
 
@@ -1238,42 +1144,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginAsDemoUser = async (email: string, name: string, role: UserRole, schoolId: string | null) => {
-    setLoading(true);
-    setIsLocalSession(true);
-    // Explicit demo login: persist this flag so reloads stay in demo mode
-    localStorage.setItem("lingua_isDemoLogin", "true");
-    const mockUid = `demo_${role}_${Date.now()}`;
-    const mockFUser = {
-      uid: mockUid,
-      email: email,
-      displayName: name,
-      emailVerified: true,
-      isAnonymous: false,
-      providerData: []
-    } as any;
-    
-    const profile: UserProfile = {
-      id: mockUid,
-      name,
-      email: email.trim().toLowerCase(),
-      role,
-      campusId: role === UserRole.SUPERADMIN ? null : "campus_01",
-      schoolId: schoolId,
-      password: "lingua123"
-    };
 
-    // Skip Firestore write in local session mode (would hang with persistent cache)
-    setFirebaseUser(mockFUser);
-    setCurrentUser(profile);
-    setLoading(false);
-  };
 
   const logout = async () => {
-    // Clear all session flags so onAuthStateChanged can work normally on next login
-    setIsLocalSession(false);
-    localStorage.removeItem("lingua_isDemoLogin");
-    localStorage.removeItem("lingua_isLocalSession"); // Legacy cleanup
+    // Clear all session storage
     localStorage.removeItem("lingua_firebaseUser");
     localStorage.removeItem("lingua_currentUser");
     try {
@@ -1385,6 +1259,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!currentUser) return { success: false, message: "Non authentifié" };
     if (currentUser.role === UserRole.SUPERADMIN) {
       return { success: false, message: "Le Super Administrateur ne gère pas les élèves. Cette action est réservée aux directrices et secrétaires des écoles." };
+    }
+
+    if (currentSchool?.status === "blocked") {
+      return { success: false, message: "Votre établissement a été suspendu par le super administrateur. Veuillez régulariser votre situation." };
+    }
+    if (currentSchool && new Date(currentSchool.subExpiresAt) < new Date()) {
+      return { success: false, message: "L'abonnement de votre établissement a expiré. Veuillez contacter le super administrateur pour vous réabonner." };
     }
 
     // Check school's subscription plan rules
@@ -2451,13 +2332,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearTimeout(timer);
   }, [currentUser, currentSchool, systemNotifications.length]);
 
-  // Real-time access check: if the school status changes to "blocked", log out immediately
+  // Real-time access check: if the school status changes to "blocked" or subscription expires, log out immediately
   useEffect(() => {
     if (!currentUser || currentUser.role === UserRole.SUPERADMIN || !currentSchool) return;
 
     if (currentSchool.status === "blocked") {
       console.warn(`School ${currentSchool.name} is blocked. Auto-logging out user.`);
       alert("Votre établissement a été suspendu par le super administrateur. Accès refusé.");
+      logout();
+      return;
+    }
+
+    if (new Date(currentSchool.subExpiresAt) < new Date()) {
+      console.warn(`School ${currentSchool.name} subscription expired. Auto-logging out user.`);
+      alert("L'abonnement de votre établissement a expiré. Accès bloqué. Veuillez contacter le super administrateur.");
       logout();
     }
   }, [currentUser, currentSchool]);
@@ -2533,9 +2421,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const availableUsers = useMemo(() => {
-    const currentSchoolId = activeSchoolId || "school_demo";
     return allUsers.filter(
-      u => (u.schoolId === currentSchoolId || (u as any).schoolId === currentSchoolId) &&
+      u => u.schoolId === activeSchoolId &&
            (u.role === UserRole.DIRECTRICE || u.role === UserRole.SECRETAIRE)
     );
   }, [allUsers, activeSchoolId]);
@@ -2549,7 +2436,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLocalSession,
         loginWithGoogle,
         loginWithPassword,
-        loginAsDemoUser,
         logout,
         availableUsers,
         allUsers,
