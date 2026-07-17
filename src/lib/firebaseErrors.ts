@@ -44,5 +44,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error("Firestore Error: ", JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  // Show a user-friendly message instead of raw JSON
+  const friendlyMessage = operationType === OperationType.WRITE
+    ? "Une erreur est survenue lors de l'enregistrement. Veuillez réessayer."
+    : "Une erreur est survenue lors du chargement des données. Veuillez rafraîchir la page.";
+  throw new Error(friendlyMessage);
 }

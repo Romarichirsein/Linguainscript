@@ -150,5 +150,15 @@ service cloud.firestore {
     match /schools/{schoolId} {
       allow read, write: if true;
     }
+
+    // 12. Plans config collection
+    match /plans_config/{planId} {
+      allow read, write: if true;
+    }
+
+    // 13. System notifications collection
+    match /system_notifications/{notifId} {
+      allow read, write: if true;
+    }
   }
 }
