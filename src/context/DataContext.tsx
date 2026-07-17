@@ -253,6 +253,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // isLocalSession is kept as a constant false — demo mode is disabled
   const isLocalSession = false;
+  const setIsLocalSession = (val: boolean) => {}; // Dummy function to prevent errors
 
   useEffect(() => {
     try {
