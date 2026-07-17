@@ -591,14 +591,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubCampuses = onSnapshot(collection(db, "campuses"), async (snapshot) => {
       const items = snapshot.docs.map(d => mapDoc<Campus>(d));
       setRawCampuses(items);
-      
-      // Seed if empty, only if the user is the Super Admin (avoids multiple writes by tenant managers)
-      if (items.length === 0 && auth.currentUser?.email === "superadmin@linguainscript.com") {
-        console.log("Database is empty. Seeding mock standard data...");
-        await doDatabaseSeed();
-      }
     }, (err) => {
-      console.error("Error loading campuses: ", err);
+      console.error("Error loading campuses list:", err);
     });
 
     const unsubPlansConfig = onSnapshot(collection(db, "plans_config"), async (snapshot) => {
@@ -694,52 +688,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Seeder helper
   const doDatabaseSeed = async () => {
-    try {
-      const batch = writeBatch(db);
-      
-      mockCampuses.forEach(item => {
-        batch.set(doc(db, "campuses", item.id), { ...item, schoolId: "school_demo" });
-      });
-      
-      mockTeachers.forEach(item => {
-        batch.set(doc(db, "teachers", item.id), { ...item, schoolId: "school_demo" });
-      });
-      
-      mockClasses.forEach(item => {
-        batch.set(doc(db, "classes", item.id), { ...item, schoolId: "school_demo" });
-      });
-      
-      mockStudents.forEach(item => {
-        batch.set(doc(db, "students", item.id), {
-          ...item,
-          schoolId: "school_demo",
-          createdAt: Timestamp.fromDate(new Date(item.createdAt)),
-          updatedAt: Timestamp.fromDate(new Date(item.updatedAt))
-        });
-      });
-      
-      mockPayments.forEach(item => {
-        batch.set(doc(db, "payments", item.id), { ...item, schoolId: "school_demo" });
-      });
-
-      mockWaitlist.forEach(item => {
-        batch.set(doc(db, "waitlist", item.id), { ...item, schoolId: "school_demo" });
-      });
-      
-      // Seed audit logs
-      mockAuditLogs.forEach(item => {
-        batch.set(doc(db, "audit_logs", item.id), {
-          ...item,
-          schoolId: "school_demo",
-          timestamp: item.timestamp
-        });
-      });
-      
-      await batch.commit();
-      console.log("Firebase seeding triggered and committed successfully under school_demo workspace.");
-    } catch (err) {
-      console.error("Error while seeding data:", err);
-    }
+    // Disabled for production.
   };
 
   const checkRoleAccess = (allowedRoles: UserRole[], actionDescription: string) => {
@@ -2075,30 +2024,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetDatabase = async () => {
-    checkRoleAccess([UserRole.SUPERADMIN], "Réinitialisation complète de la base de données");
-    // Standard re-seeding triggers on deleting all campuses
-    try {
-      setLoading(true);
-      const batch = writeBatch(db);
-      
-      // Delete everything we can fetch
-      campuses.forEach(c => batch.delete(doc(db, "campuses", c.id)));
-      teachers.forEach(t => batch.delete(doc(db, "teachers", t.id)));
-      classes.forEach(cl => batch.delete(doc(db, "classes", cl.id)));
-      students.forEach(s => batch.delete(doc(db, "students", s.id)));
-      payments.forEach(p => batch.delete(doc(db, "payments", p.id)));
-      auditLogs.forEach(al => batch.delete(doc(db, "audit_logs", al.id)));
-      waitlist.forEach(w => batch.delete(doc(db, "waitlist", w.id)));
-      reminders.forEach(r => batch.delete(doc(db, "reminders", r.id)));
-      
-      await batch.commit();
-      
-      // Trigger new seed
-      await doDatabaseSeed();
-      setLoading(false);
-    } catch (err) {
-      console.error("Reset database error: ", err);
-    }
+    // Disabled for production.
   };
 
   const addReminder = async (reminderData: Omit<Reminder, "id" | "createdAt">) => {
