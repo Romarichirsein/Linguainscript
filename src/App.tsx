@@ -585,17 +585,48 @@ function LoginScreenWrapper() {
 
 // Redirect root index / to correct path based on authentication state
 function RootRedirect() {
-  const { firebaseUser, currentUser, isLocalSession, schoolSlug } = useData();
+  const { firebaseUser, currentUser, isLocalSession, schoolSlug, schools, getSchoolSlug, loading } = useData();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-900 text-white gap-3">
+        <RefreshCw className="h-6 w-6 animate-spin text-blue-500" />
+        <p className="font-sans text-xs font-semibold text-slate-400">Chargement de votre session...</p>
+      </div>
+    );
+  }
 
   if (!firebaseUser && !(isLocalSession && currentUser)) {
     return <Navigate to="/login" replace />;
   }
+
   if (currentUser?.role === "superadmin") {
     return <Navigate to="/super-admin" replace />;
   }
+
   if (schoolSlug) {
     return <Navigate to={`/${schoolSlug}/tableau-de-bord`} replace />;
   }
+
+  // If user belongs to a school and schools list is loaded
+  if (currentUser?.schoolId && schools.length > 0) {
+    const mySchool = schools.find(s => s.id === currentUser.schoolId);
+    if (mySchool) {
+      const slug = getSchoolSlug(mySchool.name);
+      return <Navigate to={`/${slug}/tableau-de-bord`} replace />;
+    }
+  }
+
+  // If user belongs to a school but schools list is still loading from Firestore:
+  if (currentUser?.schoolId) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-900 text-white gap-3">
+        <RefreshCw className="h-6 w-6 animate-spin text-blue-500" />
+        <p className="font-sans text-xs font-semibold text-slate-400">Connexion à votre espace d'établissement...</p>
+      </div>
+    );
+  }
+
   return <Navigate to="/login" replace />;
 }
 
