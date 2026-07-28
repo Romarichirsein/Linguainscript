@@ -64,6 +64,8 @@ export const StudentList: React.FC<StudentListProps> = ({
   const [editParentPhone, setEditParentPhone] = useState("");
   const [editClassId, setEditClassId] = useState("");
   const [editStatus, setEditStatus] = useState<Student["status"]>("actif");
+  const [editEnrollmentDate, setEditEnrollmentDate] = useState("");
+  const [editExpirationDate, setEditExpirationDate] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
   const isDirectrice = currentUser?.role === "directrice";
@@ -255,6 +257,8 @@ export const StudentList: React.FC<StudentListProps> = ({
     setEditParentPhone(stud.parentPhone);
     setEditClassId(stud.classId);
     setEditStatus(stud.status);
+    setEditEnrollmentDate(stud.enrollmentDate || new Date().toISOString().split("T")[0]);
+    setEditExpirationDate(stud.expirationDate || new Date().toISOString().split("T")[0]);
   };
 
   const submitEdit = async (e: React.FormEvent) => {
@@ -270,7 +274,9 @@ export const StudentList: React.FC<StudentListProps> = ({
         parentName: editParentName.trim(),
         parentPhone: editParentPhone.trim(),
         classId: editClassId,
-        status: editStatus
+        status: editStatus,
+        enrollmentDate: editEnrollmentDate,
+        expirationDate: editExpirationDate
       });
       setEditModalStudent(null);
     } catch (err: any) {
@@ -883,6 +889,26 @@ export const StudentList: React.FC<StudentListProps> = ({
                   <option value="terminé">Terminé</option>
                   <option value="archivé">Archivé</option>
                 </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">Date de début (Inscription)</label>
+                <input
+                  type="date"
+                  required
+                  value={editEnrollmentDate}
+                  onChange={e => setEditEnrollmentDate(e.target.value)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-xs font-mono bg-white cursor-pointer"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold">Date de fin (Échéance)</label>
+                <input
+                  type="date"
+                  required
+                  value={editExpirationDate}
+                  onChange={e => setEditExpirationDate(e.target.value)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-xs font-mono bg-white cursor-pointer"
+                />
               </div>
               <div className="col-span-2 flex gap-2 pt-2">
                 <button type="button" onClick={() => setEditModalStudent(null)} className="flex-1 rounded-xl border border-slate-200 py-2.5 font-bold hover:bg-slate-50 cursor-pointer text-sm">

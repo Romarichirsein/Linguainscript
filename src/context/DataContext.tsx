@@ -1330,15 +1330,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      // 1. Write Student to firestore with server timestamps for strict security compliance
-      await setDoc(doc(db, "students", studentId), {
+      const batch = writeBatch(db);
+
+      // 1. Add Student doc to batch
+      const studentRef = doc(db, "students", studentId);
+      batch.set(studentRef, {
         ...newStudent,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
 
       // 2. Increment student count in classes collection
-      await updateDoc(doc(db, "classes", selectedClass.id), {
+      const classRef = doc(db, "classes", selectedClass.id);
+      batch.update(classRef, {
         currentCount: increment(1)
       });
 
@@ -1358,16 +1362,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           note: paymentNote || "Paiement initial de l'inscription",
           schoolId: activeSchoolId || "school_demo"
         } as any;
-        await setDoc(doc(db, "payments", paymentId), newPayment);
-        await handleAudit("ADD_PAYMENT", studentId, `${newStudent.firstName} ${newStudent.lastName}`, {
-          amount: paymentAmount,
-          mode: paymentMode
-        });
+        const paymentRef = doc(db, "payments", paymentId);
+        batch.set(paymentRef, newPayment);
       }
 
-      await handleAudit("CREATE_STUDENT", studentId, `${newStudent.firstName} ${newStudent.lastName}`, {
-        class: `${selectedClass.language} ${selectedClass.level} - ${selectedClass.period}`
-      });
+      // Execute ALL writes in a single batch request (< 400ms)
+      await batch.commit();
+
+      // Run audit logging asynchronously in background (non-blocking)
+      (async () => {
+        try {
+          if (paymentAmount > 0 && paymentMode) {
+            await handleAudit("ADD_PAYMENT", studentId, `${newStudent.firstName} ${newStudent.lastName}`, {
+              amount: paymentAmount,
+              mode: paymentMode
+            });
+          }
+          await handleAudit("CREATE_STUDENT", studentId, `${newStudent.firstName} ${newStudent.lastName}`, {
+            class: `${selectedClass.language} ${selectedClass.level} - ${selectedClass.period}`
+          });
+        } catch (auditErr) {
+          console.warn("Background audit log write failed:", auditErr);
+        }
+      })();
 
       return {
         success: true,
@@ -1507,8 +1524,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newBalance = Math.max(0, student.totalAmount - newAmountPaid);
 
     try {
-      // 1. Update balance
-      await updateDoc(doc(db, "students", studentId), {
+      const batch = writeBatch(db);
+
+      // 1. Update student balance
+      const studentRef = doc(db, "students", studentId);
+      batch.update(studentRef, {
         paidAmount: newAmountPaid,
         balance: newBalance,
         updatedAt: serverTimestamp()
@@ -1529,13 +1549,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         note: note || "Complément de paiement scolaire",
         schoolId: activeSchoolId || "school_demo"
       } as any;
-      await setDoc(doc(db, "payments", paymentId), newPayment);
+      const paymentRef = doc(db, "payments", paymentId);
+      batch.set(paymentRef, newPayment);
 
-      await handleAudit("ADD_PAYMENT", studentId, `${student.firstName} ${student.lastName}`, {
-        amount,
-        mode,
-        note
-      });
+      // Execute in 1 single fast batch request
+      await batch.commit();
+
+      // Run audit log asynchronously in background
+      (async () => {
+        try {
+          await handleAudit("ADD_PAYMENT", studentId, `${student.firstName} ${student.lastName}`, {
+            amount,
+            mode,
+            note
+          });
+        } catch (e) {
+          console.warn("Background audit log write failed:", e);
+        }
+      })();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `payments/${studentId}`);
     }

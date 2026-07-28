@@ -9,7 +9,8 @@ import {
   AlertCircle,
   ArrowRight,
   ArrowLeft,
-  Printer
+  Printer,
+  Calendar
 } from "lucide-react";
 import { generateReceipt } from "../utils/generateReceipt";
 
@@ -33,12 +34,22 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
 
+  // Date calculation helpers
+  const getTodayStr = () => new Date().toISOString().split("T")[0];
+  const addDurationToDate = (startDateStr: string, months: number) => {
+    const date = startDateStr ? new Date(startDateStr) : new Date();
+    if (isNaN(date.getTime())) return getTodayStr();
+    date.setMonth(date.getMonth() + months);
+    return date.toISOString().split("T")[0];
+  };
+
   // Step 2: Academic Info
   const [campusId, setCampusId] = useState(userCampusId || "campus_01");
   const [selectedLanguage, setSelectedLanguage] = useState("");
   const [selectedLevel, setSelectedLevel] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("");
-  const [enrollmentDays, setEnrollmentDays] = useState("365"); // Default 1 year
+  const [enrollmentDate, setEnrollmentDate] = useState(() => getTodayStr());
+  const [expirationDate, setExpirationDate] = useState(() => addDurationToDate(getTodayStr(), 12));
 
   // Step 3: Payment Initial info
   const [totalCost, setTotalCost] = useState("180000"); // Standard price preset
@@ -134,11 +145,9 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
       return;
     }
 
-    // Set Dates
-    const enrollmentDate = new Date().toISOString().split("T")[0];
-    const expDate = new Date();
-    expDate.setDate(expDate.getDate() + parseInt(enrollmentDays));
-    const expirationDate = expDate.toISOString().split("T")[0];
+    // Set Dates chosen by the directrice/user
+    const finalEnrollmentDate = enrollmentDate || getTodayStr();
+    const finalExpirationDate = expirationDate || addDurationToDate(getTodayStr(), 12);
 
     const studentPayload = {
       firstName,
@@ -150,8 +159,8 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
       parentPhone,
       campusId,
       classId: selectedClassId,
-      enrollmentDate,
-      expirationDate,
+      enrollmentDate: finalEnrollmentDate,
+      expirationDate: finalExpirationDate,
       totalAmount: costNum
     };
 
@@ -486,18 +495,72 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
                 </div>
               )}
 
-              {/* License schedule period default */}
-              <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <label className="font-semibold text-slate-650">Période de validité d'inscription</label>
-                <select
-                  value={enrollmentDays}
-                  onChange={e => setEnrollmentDays(e.target.value)}
-                  className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
-                >
-                  <option value="365">1 Année complète académique (365 jours)</option>
-                  <option value="180">Un semestre d'apprentissage (180 jours)</option>
-                  <option value="90">Trimestre intensif (90 jours)</option>
-                </select>
+              {/* Période de validité d'inscription avec calendriers */}
+              <div className="sm:col-span-2 rounded-xl bg-slate-50 p-4 border border-slate-200 space-y-3">
+                <div>
+                  <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4 text-blue-600" /> Période de validité d'inscription
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Choisissez la date de début d'inscription (par défaut la date du jour) et la date d'échéance modifiable à votre guise.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-semibold text-slate-650">Date de début d'inscription *</label>
+                    <input
+                      type="date"
+                      required
+                      value={enrollmentDate}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setEnrollmentDate(val);
+                        if (val) {
+                          setExpirationDate(addDurationToDate(val, 12));
+                        }
+                      }}
+                      className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850 font-mono text-xs cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-semibold text-slate-650">Date de fin de période (Échéance) *</label>
+                    <input
+                      type="date"
+                      required
+                      value={expirationDate}
+                      onChange={e => setExpirationDate(e.target.value)}
+                      className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850 font-mono text-xs cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Boutons raccourcis d'échéance */}
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  <span className="text-[11px] text-slate-450 font-medium">Calcul rapide d'échéance :</span>
+                  <button
+                    type="button"
+                    onClick={() => setExpirationDate(addDurationToDate(enrollmentDate, 12))}
+                    className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition cursor-pointer"
+                  >
+                    +1 An (Académique)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpirationDate(addDurationToDate(enrollmentDate, 6))}
+                    className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition cursor-pointer"
+                  >
+                    +6 Mois (Semestre)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpirationDate(addDurationToDate(enrollmentDate, 3))}
+                    className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition cursor-pointer"
+                  >
+                    +3 Mois (Trimestre)
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -662,6 +725,8 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
                   setSelectedLanguage("");
                   setSelectedLevel("");
                   setSelectedClassId("");
+                  setEnrollmentDate(getTodayStr());
+                  setExpirationDate(addDurationToDate(getTodayStr(), 12));
                   setJustCreatedId(null);
                   setStep(1);
                   setCurrentTab("students");
