@@ -315,9 +315,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
 
   // Comparative registration analytics (Month-over-Month)
   const momComparisonData = useMemo(() => {
-    // Current month is 2026-06 (June) and previous month is 2026-05 (May)
-    const currentMonthPrefix = "2026-06";
-    const previousMonthPrefix = "2026-05";
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonthIdx = now.getMonth();
+    const curMonthStr = String(curMonthIdx + 1).padStart(2, "0");
+    const currentMonthPrefix = `${curYear}-${curMonthStr}`;
+
+    const prevDate = new Date(curYear, curMonthIdx - 1, 1);
+    const prevYear = prevDate.getFullYear();
+    const prevMonthIdx = prevDate.getMonth();
+    const prevMonthStr = String(prevMonthIdx + 1).padStart(2, "0");
+    const previousMonthPrefix = `${prevYear}-${prevMonthStr}`;
+
+    const currentMonthName = `${frenchMonths[curMonthIdx]} ${curYear}`;
+    const previousMonthName = `${frenchMonths[prevMonthIdx]} ${prevYear}`;
+    const currentMonthShort = frenchMonths[curMonthIdx];
+    const previousMonthShort = frenchMonths[prevMonthIdx];
 
     const currentEnrollments = viewStudents.filter(s => s.enrollmentDate && s.enrollmentDate.startsWith(currentMonthPrefix));
     const previousEnrollments = viewStudents.filter(s => s.enrollmentDate && s.enrollmentDate.startsWith(previousMonthPrefix));
@@ -376,6 +389,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
       countCurrent,
       countPrevious,
       pctGrowth,
+      currentMonthName,
+      previousMonthName,
+      currentMonthShort,
+      previousMonthShort,
       campusBreakdown,
       languageBreakdown,
       currentStudents: currentEnrollments,
@@ -385,7 +402,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
 
   // Date boundary calculator
   const currentDateBounds = useMemo(() => {
-    const refDate = new Date("2026-06-12T12:00:00");
+    const refDate = new Date();
     let start: Date | null = null;
     let end: Date | null = null;
 
@@ -441,10 +458,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
   const filteredPayments = useMemo(() => {
     const { start, end } = currentDateBounds;
     if (!start && !end) {
-      if (timePeriod === "all") {
-        // Default to June for "all" to match original Recettes view
-        return viewPayments.filter(p => p.date.startsWith("2026-06"));
-      }
       return viewPayments;
     }
     return viewPayments.filter(p => {
@@ -546,7 +559,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
     return Object.keys(monthlyPaymentsMap).sort();
   }, [monthlyPaymentsMap]);
 
-  const defaultMonthsList = ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"];
+  const defaultMonthsList = useMemo(() => {
+    const months = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      months.push(`${y}-${m}`);
+    }
+    return months;
+  }, []);
+
   const finalMonthsList = useMemo(() => {
     return activeMonths.length > 0 ? activeMonths : defaultMonthsList;
   }, [activeMonths, defaultMonthsList]);
@@ -574,15 +598,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
     return { name: camp.name, Recettes: totalAmount };
   });
 
-  // Inscriptions over recent 6 months (mock database distribution)
-  const timelineRegistryData = [
-    { name: "Janv", Inscriptions: 8 },
-    { name: "Févr", Inscriptions: 12 },
-    { name: "Mars", Inscriptions: 15 },
-    { name: "Avril", Inscriptions: 22 },
-    { name: "Mai", Inscriptions: 31 },
-    { name: "Juin", Inscriptions: viewStudents.length }
-  ];
+  // Inscriptions over recent 6 months (dynamically calculated from real student enrollments)
+  const timelineRegistryData = useMemo(() => {
+    const now = new Date();
+    const monthsData = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const monthIdx = d.getMonth();
+      const monthPrefix = `${year}-${String(monthIdx + 1).padStart(2, "0")}`;
+      const count = viewStudents.filter(s => s.enrollmentDate && s.enrollmentDate.startsWith(monthPrefix)).length;
+      monthsData.push({
+        name: frenchMonths[monthIdx].substring(0, 4),
+        Inscriptions: count
+      });
+    }
+    return monthsData;
+  }, [viewStudents]);
 
   const handleActionClick = (tab: string) => {
     setCurrentTab(tab);
@@ -759,7 +791,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
           {/* Quick presets group */}
           <div className="flex flex-wrap items-center gap-1.5">
             {[
-              { id: "all", label: "Tout (Juin)" },
+              { id: "all", label: "Tout" },
               { id: "week", label: "Cette semaine" },
               { id: "month", label: "Ce mois" },
               { id: "quarter", label: "Ce trimestre" },
@@ -905,7 +937,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div>
             <div className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">
-              {timePeriod === "all" ? "Recettes Mensuelles (Juin)" : "Recettes de la Période"}
+              {timePeriod === "all" ? "Recettes Totales Encaissées" : "Recettes de la Période"}
             </div>
             <div className="text-2xl font-black mt-1 text-slate-900">
               {collectedThisMonth.toLocaleString()} <span className="text-xs font-normal text-slate-400">FCFA</span>
@@ -952,7 +984,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
             </div>
             <div>
               <h3 className="font-sans font-bold text-sm text-slate-800">
-                {t("directriceActionCenter")} {isEn ? "(June 2026)" : "(Juin 2026)"}
+                {t("directriceActionCenter")} ({momComparisonData.currentMonthName})
               </h3>
               <p className="text-[10px] text-slate-500 font-medium">
                 {t("directriceActionCenterDesc")}
@@ -1527,7 +1559,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-700 font-bold text-[10px]">
                       N
                     </span>
-                    <span className="font-semibold text-slate-700 font-bold">Total Enregistrés (Juin)</span>
+                    <span className="font-semibold text-slate-700 font-bold">Total Enregistrés ({momComparisonData.currentMonthShort})</span>
                   </div>
                   <span className="font-extrabold text-slate-900 text-sm">{viewStudents.length} élèves</span>
                 </div>
@@ -1586,39 +1618,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                 </div>
                 <h4 className="text-sm font-bold text-slate-800 leading-tight">Performances MoM d'Acquisition & Inscription</h4>
                 <p className="text-xs text-slate-500 leading-relaxed max-w-2xl">
-                  Pilotez la croissance de votre école de langues en comparant les effectifs d'élèves nouvellement inscrits entre le mois en cours <strong className="text-blue-700 font-bold">Juin 2026</strong> et le mois précédent <strong className="text-slate-700 font-bold">Mai 2026</strong>.
+                  Pilotez la croissance de votre école de langues en comparant les effectifs d'élèves nouvellement inscrits entre le mois en cours <strong className="text-blue-700 font-bold">{momComparisonData.currentMonthName}</strong> et le mois précédent <strong className="text-slate-700 font-bold">{momComparisonData.previousMonthName}</strong>.
                 </p>
               </div>
               <div className="shrink-0 flex items-center gap-1.5 bg-white p-2.5 rounded-xl border border-blue-100 shadow-sm self-start sm:self-auto font-mono text-[10px] text-blue-600 font-bold space-x-1">
-                📈 ANALYSE DU TRIMESTRE : T2 2026
+                📈 SUIVI DE PERFORMANCE MOM
               </div>
             </div>
           </div>
 
           {/* KPI Cards section */}
           <div className="grid gap-4 sm:grid-cols-3">
-            {/* June */}
+            {/* Current month */}
             <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
               <div>
                 <span className="text-slate-400 text-[10.5px] uppercase font-bold tracking-widest block mb-1">Inscriptions de ce Mois</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-3xl font-black text-blue-600">{momComparisonData.countCurrent}</span>
-                  <span className="text-xs font-semibold text-slate-400">nouveaux élèves (Juin)</span>
+                  <span className="text-xs font-semibold text-slate-400">nouveaux élèves ({momComparisonData.currentMonthShort})</span>
                 </div>
               </div>
-              <p className="text-[10px] text-slate-400 mt-2 font-mono">Période : 01 Juin 2026 - Aujourd'hui</p>
+              <p className="text-[10px] text-slate-400 mt-2 font-mono">Période : 01 {momComparisonData.currentMonthName} - Aujourd'hui</p>
             </div>
 
-            {/* May */}
+            {/* Previous month */}
             <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
               <div>
                 <span className="text-slate-400 text-[10.5px] uppercase font-bold tracking-widest block mb-1">Inscriptions du Mois Précédent</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-3xl font-black text-slate-705">{momComparisonData.countPrevious}</span>
-                  <span className="text-xs font-semibold text-slate-400">nouveaux élèves (Mai)</span>
+                  <span className="text-xs font-semibold text-slate-400">nouveaux élèves ({momComparisonData.previousMonthShort})</span>
                 </div>
               </div>
-              <p className="text-[10px] text-slate-400 mt-2 font-mono">Période : 01 Mai 2026 - 31 Mai 2026</p>
+              <p className="text-[10px] text-slate-400 mt-2 font-mono">Période : 01 {momComparisonData.previousMonthName}</p>
             </div>
 
             {/* Growth indicator */}
@@ -1672,7 +1704,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                         <div className="flex items-center gap-1.5 font-mono text-[10.5px]">
                           <span className="text-blue-600 font-bold">{camp.current} (ce mois)</span>
                           <span className="text-slate-300">vs</span>
-                          <span className="text-slate-500">{camp.previous} (mai)</span>
+                          <span className="text-slate-500">{camp.previous} ({momComparisonData.previousMonthShort.toLowerCase()})</span>
                           <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${camp.growth >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
                             {camp.growth >= 0 ? "+" : ""}{camp.growth}%
                           </span>
@@ -1683,14 +1715,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                       <div className="space-y-1 bg-slate-50 p-2 rounded-lg">
                         {/* Current Month Bar */}
                         <div className="space-y-0.5">
-                          <span className="text-[8px] text-slate-400 block font-bold uppercase">Mois de Juin (Courant)</span>
+                          <span className="text-[8px] text-slate-400 block font-bold uppercase">Mois de {momComparisonData.currentMonthShort} (Courant)</span>
                           <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                             <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${curPct}%` }} />
                           </div>
                         </div>
                         {/* Previous Month Bar */}
                         <div className="space-y-0.5">
-                          <span className="text-[8px] text-slate-400 block font-bold uppercase">Mois de Mai (Précédent)</span>
+                          <span className="text-[8px] text-slate-400 block font-bold uppercase">Mois de {momComparisonData.previousMonthShort} (Précédent)</span>
                           <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                             <div className="bg-slate-400 h-2 rounded-full" style={{ width: `${prevPct}%` }} />
                           </div>
@@ -1716,8 +1748,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                   <thead className="bg-slate-50 text-slate-400 font-bold uppercase">
                     <tr>
                       <th className="p-2.5">Langue d'apprentissage</th>
-                      <th className="p-2.5 text-center">Mai 2026</th>
-                      <th className="p-2.5 text-center">Juin 2026</th>
+                      <th className="p-2.5 text-center">{momComparisonData.previousMonthName}</th>
+                      <th className="p-2.5 text-center">{momComparisonData.currentMonthName}</th>
                       <th className="p-2.5 text-right">Évolution</th>
                     </tr>
                   </thead>
@@ -1760,10 +1792,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
 
             <div className="grid gap-4 md:grid-cols-2">
               
-              {/* June lists */}
+              {/* Current month lists */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b border-blue-100 pb-1.5">
-                  <span className="text-[10.5px] font-extrabold text-blue-700 uppercase tracking-wide">📅 Roster de Juin ({momComparisonData.countCurrent})</span>
+                  <span className="text-[10.5px] font-extrabold text-blue-700 uppercase tracking-wide">📅 Roster de {momComparisonData.currentMonthShort} ({momComparisonData.countCurrent})</span>
                   <span className="text-[9px] font-mono font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">Ce Mois</span>
                 </div>
 
@@ -1796,10 +1828,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                 </div>
               </div>
 
-              {/* May lists */}
+              {/* Previous month lists */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                  <span className="text-[10.5px] font-extrabold text-slate-600 uppercase tracking-wide">📅 Roster de Mai ({momComparisonData.countPrevious})</span>
+                  <span className="text-[10.5px] font-extrabold text-slate-600 uppercase tracking-wide">📅 Roster de {momComparisonData.previousMonthShort} ({momComparisonData.countPrevious})</span>
                   <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">Mois Dernier</span>
                 </div>
 
