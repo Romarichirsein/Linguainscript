@@ -1305,7 +1305,7 @@ export function SaaSManagement() {
                 { key: "canCreateStudents", label: "Création d'élèves" },
                 { key: "canManageStudents", label: "Gestion des élèves (modification, suppression)" },
                 { key: "canGenerateReceipts", label: "Génération de reçus PDF" },
-                { key: "canGenerateDocuments", label: "Génération de documents (certificats, factures)" },
+                { key: "canGenerateDocuments", label: "Génération de documents (certificats, reçus)" },
                 { key: "canAdvancedSearch", label: "Recherche avancée & filtres" },
                 { key: "canViewHistory", label: "Consultation de l'historique" },
                 { key: "canViewReports", label: "Rapports financiers & statistiques" },

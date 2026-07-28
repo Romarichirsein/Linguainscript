@@ -1,6 +1,17 @@
 import { jsPDF } from "jspdf";
 import { Student, Class, Campus, SchoolConfig } from "../types";
 
+/** Format a number with dot as thousands separator (e.g. 180000 → 180.000) */
+function formatFCFA(amount: number): string {
+  const parts = Math.round(amount).toString().split("");
+  const result: string[] = [];
+  for (let i = parts.length - 1, count = 0; i >= 0; i--, count++) {
+    if (count > 0 && count % 3 === 0) result.unshift(".");
+    result.unshift(parts[i]);
+  }
+  return result.join("") + " FCFA";
+}
+
 export function generateInvoice(
   student: Student,
   selectedClass?: Class,
@@ -99,9 +110,9 @@ export function generateInvoice(
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text("FACTURE ACADÉMIQUE DE SCOLARITÉ", marginX, currentY);
+    doc.text("REÇU ACADÉMIQUE DE SCOLARITÉ", marginX, currentY);
 
-    const factRef = `FAC-${new Date(student.enrollmentDate).getFullYear()}-${student.id.substring(0, 5).toUpperCase()}`;
+    const factRef = `REC-${new Date(student.enrollmentDate).getFullYear()}-${student.id.substring(0, 5).toUpperCase()}`;
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(textColor[0], textColor[1], textColor[2]);
@@ -203,7 +214,7 @@ export function generateInvoice(
     doc.text(selectedCampus ? selectedCampus.name.substring(0, 20) : "Central", marginX + 110, currentY + 6);
     
     doc.setFont("Helvetica", "bold");
-    doc.text(`${student.totalAmount.toLocaleString()} FCFA`, 191, currentY + 6, { align: "right" });
+    doc.text(formatFCFA(student.totalAmount), 191, currentY + 6, { align: "right" });
 
     currentY += 10;
     doc.setDrawColor(241, 245, 249);
@@ -250,7 +261,7 @@ export function generateInvoice(
         doc.text(p.mode, marginX + 90, currentY + 5);
         
         doc.setFont("Helvetica", "bold");
-        doc.text(`${p.amount.toLocaleString()} FCFA`, 191, currentY + 5, { align: "right" });
+        doc.text(formatFCFA(p.amount), 191, currentY + 5, { align: "right" });
         currentY += 6.5;
       });
     }
@@ -268,7 +279,7 @@ export function generateInvoice(
     doc.text("Total Scolarité Exigible :", summaryX, currentY);
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-    doc.text(`${student.totalAmount.toLocaleString()} FCFA`, 191, currentY, { align: "right" });
+    doc.text(formatFCFA(student.totalAmount), 191, currentY, { align: "right" });
 
     currentY += 5.5;
 
@@ -277,7 +288,7 @@ export function generateInvoice(
     doc.text("Net déjà Perçu (Versé) :", summaryX, currentY);
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(16, 185, 129); // Green color for deposits
-    doc.text(`${student.paidAmount.toLocaleString()} FCFA`, 191, currentY, { align: "right" });
+    doc.text(formatFCFA(student.paidAmount), 191, currentY, { align: "right" });
 
     currentY += 5.5;
 
@@ -297,7 +308,7 @@ export function generateInvoice(
     } else {
       doc.setTextColor(16, 185, 129); // Green color for cleared
     }
-    doc.text(`${student.balance.toLocaleString()} FCFA`, 191, currentY, { align: "right" });
+    doc.text(formatFCFA(student.balance), 191, currentY, { align: "right" });
 
     currentY += 15;
 
@@ -340,9 +351,9 @@ export function generateInvoice(
     // Download the PDF file directly (solving the iframe popups block)
     const normalizedFirstName = student.firstName.toLowerCase().replace(/[^a-z0-9]/g, "_");
     const normalizedLastName = student.lastName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-    const invoiceFileName = `facture_${normalizedFirstName}_${normalizedLastName}.pdf`;
+    const invoiceFileName = `recu_${normalizedFirstName}_${normalizedLastName}.pdf`;
     doc.save(invoiceFileName);
   } catch (error) {
-    console.error("Erreur lors de la génération de la facture", error);
+    console.error("Erreur lors de la génération du reçu", error);
   }
 }

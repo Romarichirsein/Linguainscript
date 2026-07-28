@@ -718,7 +718,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
                 type="button"
                 onClick={() => {
                   if (!currentPlan.canGenerateDocuments) {
-                    alert(`⚠️ Fonctionnalité Bloquée : La génération de facture n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Intégral pour débloquer cette fonctionnalité.`);
+                    alert(`⚠️ Fonctionnalité Bloquée : La génération de reçu n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer au pack Intégral pour débloquer cette fonctionnalité.`);
                     return;
                   }
                   triggerExportInvoice();
@@ -727,7 +727,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
                   !currentPlan.canGenerateDocuments ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
-                <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" /> {currentPlan.canGenerateDocuments ? "" : "🔒 "}Générer & Télécharger la Facture PDF
+                <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" /> {currentPlan.canGenerateDocuments ? "" : "🔒 "}Générer & Télécharger le Reçu PDF
               </button>
             </div>
 
