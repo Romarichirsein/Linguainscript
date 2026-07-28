@@ -44,10 +44,10 @@ import { D3PaymentsChart } from "../components/analytics/D3PaymentsChart";
 import { RechartsEnrollmentChart } from "../components/analytics/RechartsEnrollmentChart";
 import { RechartsRevenueChart } from "../components/analytics/RechartsRevenueChart";
 
-interface DashboardProps {
-  setCurrentTab: (tab: string) => void;
-  setSelectedStudentId: (id: string | null) => void;
-}
+const frenchMonths = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+];
 
 export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelectedStudentId }) => {
   const { 
@@ -536,10 +536,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
     })).sort((a, b) => b.value - a.value);
   }, [courseInscriptionsMap]);
 
-  const frenchMonths = [
-    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
-  ];
+
 
   const monthlyPaymentsMap = useMemo(() => {
     return filteredPaymentsForCharts.reduce((acc: { [key: string]: number }, p) => {

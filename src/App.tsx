@@ -19,6 +19,7 @@ import { AuditLog } from "./pages/AuditLog";
 import { Settings } from "./pages/Settings";
 import { SaaSManagement } from "./pages/SaaSManagement";
 import { LogIn, Sparkles, BookOpen, GraduationCap, RefreshCw, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function LoginScreen() {
   const { loginWithGoogle, loginWithPassword } = useData();
@@ -632,17 +633,19 @@ function RootRedirect() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <DataProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginScreenWrapper />} />
-            <Route path="/super-admin" element={<RequireAuth><DashboardContainer /></RequireAuth>} />
-            <Route path="/:schoolSlug/*" element={<RequireAuth><SchoolRouteGuard><DashboardContainer /></SchoolRouteGuard></RequireAuth>} />
-            <Route path="*" element={<RootRedirect />} />
-          </Routes>
-        </BrowserRouter>
-      </DataProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <DataProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<LoginScreenWrapper />} />
+              <Route path="/super-admin" element={<RequireAuth><DashboardContainer /></RequireAuth>} />
+              <Route path="/:schoolSlug/*" element={<RequireAuth><SchoolRouteGuard><DashboardContainer /></SchoolRouteGuard></RequireAuth>} />
+              <Route path="*" element={<RootRedirect />} />
+            </Routes>
+          </BrowserRouter>
+        </DataProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
