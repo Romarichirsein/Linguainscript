@@ -12,7 +12,13 @@ import {
   Camera, 
   Trash2, 
   VideoOff, 
-  Lock 
+  Lock,
+  Eye,
+  EyeOff,
+  Key,
+  Copy,
+  Edit2,
+  ShieldCheck 
 } from "lucide-react";
 
 export function Settings() {
@@ -23,6 +29,7 @@ export function Settings() {
     allUsers, 
     addStaffUser, 
     deleteStaffUser, 
+    updateStaffUserPassword,
     activeSchoolId, 
     campuses,
     runAutomaticSMSSweep
@@ -82,38 +89,51 @@ export function Settings() {
   };
 
   // Staff account state variables (Secretary and Directrice)
+  // User Management state
   const [secName, setSecName] = useState("");
   const [secEmail, setSecEmail] = useState("");
+  const [secPassword, setSecPassword] = useState("");
+  const [showSecPassword, setShowSecPassword] = useState(false);
   const [secRole, setSecRole] = useState<UserRole>(UserRole.SECRETAIRE);
   const [secCampusId, setSecCampusId] = useState("");
   const [addingSec, setAddingSec] = useState(false);
   const [secError, setSecError] = useState("");
   const [secSuccess, setSecSuccess] = useState("");
 
+  // Table password management states
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
   const handleCreateSecretary = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!secName.trim() || !secEmail.trim()) {
-      setSecError("⚠️ Veuillez remplir le nom complet et l'adresse Gmail.");
+      setSecError("⚠️ Veuillez remplir le nom complet et l'adresse email.");
       return;
     }
     setAddingSec(true);
     setSecError("");
     setSecSuccess("");
     try {
+      const finalPassword = secPassword.trim() || "lingua123";
       await addStaffUser(
         secName.trim(),
         secEmail.trim().toLowerCase(),
         secRole,
         secCampusId || null,
-        activeSchoolId
+        activeSchoolId,
+        finalPassword
       );
       const roleLabel = secRole === UserRole.DIRECTRICE ? "directrice" : "secrétaire";
-      setSecSuccess(`Félicitations, le compte ${roleLabel} de "${secName}" a été pré-approuvé et initialisé !`);
+      setSecSuccess(`Félicitations, le compte ${roleLabel} de "${secName}" a été créé ! Mot de passe défini : "${finalPassword}"`);
       setSecName("");
       setSecEmail("");
+      setSecPassword("");
       setSecCampusId("");
       setSecRole(UserRole.SECRETAIRE);
-      setTimeout(() => setSecSuccess(""), 5000);
+      setTimeout(() => setSecSuccess(""), 8000);
     } catch (err) {
       setSecError("Échec lors de la création du compte.");
     } finally {
@@ -121,12 +141,54 @@ export function Settings() {
     }
   };
 
+  const handleUpdatePassword = async (userId: string) => {
+    if (!newPasswordInput.trim()) {
+      alert("Veuillez saisir un mot de passe valide.");
+      return;
+    }
+    setUpdatingPassword(true);
+    try {
+      await updateStaffUserPassword(userId, newPasswordInput.trim());
+      setEditingUserId(null);
+      setNewPasswordInput("");
+      setSecSuccess("Le mot de passe de l'utilisateur a été mis à jour avec succès !");
+      setTimeout(() => setSecSuccess(""), 5000);
+    } catch (err) {
+      alert("Échec de la modification du mot de passe.");
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
+  const togglePasswordVisibility = (userId: string) => {
+    setVisiblePasswords(prev => ({
+      ...prev,
+      [userId]: !prev[userId]
+    }));
+  };
+
+  const handleCopyPassword = (userId: string, pass: string) => {
+    navigator.clipboard.writeText(pass);
+    setCopiedId(userId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleGeneratePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
+    let pass = "";
+    for (let i = 0; i < 8; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setSecPassword(pass);
+    setShowSecPassword(true);
+  };
+
   const handleDeleteSecretary = async (userId: string) => {
     if (!window.confirm("⚠️ Confirmez-vous la révocation et suppression de cet accès Secrétaire ? Ce choix est irréversible.")) return;
     try {
       await deleteStaffUser(userId);
     } catch (err) {
-      alert("Échec lors de la retrait du compte.");
+      alert("Échec du retrait du compte.");
     }
   };
 
@@ -943,7 +1005,7 @@ export function Settings() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-650">Adresse Gmail de connexion *</label>
+                  <label className="font-semibold text-slate-650">Adresse Email de connexion *</label>
                   <input
                     type="email"
                     required
@@ -952,8 +1014,40 @@ export function Settings() {
                     onChange={(e) => setSecEmail(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 p-2.5 outline-hidden focus:border-indigo-500 text-slate-800"
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-slate-650 flex items-center gap-1">
+                      <Key className="h-3.5 w-3.5 text-amber-500" />
+                      Mot de passe d'accès *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGeneratePassword}
+                      className="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium underline cursor-pointer"
+                    >
+                      🎲 Générer
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showSecPassword ? "text" : "password"}
+                      placeholder="ex: Secret2026! (Par défaut: lingua123)"
+                      value={secPassword}
+                      onChange={(e) => setSecPassword(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 p-2.5 pr-10 outline-hidden focus:border-indigo-500 text-slate-800 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSecPassword(!showSecPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                    >
+                      {showSecPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   <p className="text-[10px] text-slate-400">
-                    L'adresse doit obligatoirement être un Gmail officiel pour se raccorder via Google Sign-In.
+                    Saisissez le mot de passe que l'utilisatrice utilisera pour se connecter.
                   </p>
                 </div>
 
@@ -986,9 +1080,10 @@ export function Settings() {
                 <button
                   type="submit"
                   disabled={addingSec}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl transition shadow-xs cursor-pointer disabled:bg-slate-300"
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl transition shadow-xs cursor-pointer disabled:bg-slate-300 flex items-center justify-center gap-2"
                 >
-                  {addingSec ? "Configuration en cours..." : "Valider & Pré-approuver"}
+                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                  {addingSec ? "Configuration en cours..." : "Créer le compte utilisateur"}
                 </button>
               </form>
             </div>
@@ -1008,10 +1103,10 @@ export function Settings() {
                   <table className="w-full text-left text-xs text-slate-600">
                     <thead>
                       <tr className="border-b border-slate-100 text-[10px] font-mono text-slate-400 uppercase tracking-wider">
-                        <th className="py-2">Nom</th>
-                        <th className="py-2">Rôle / Badge</th>
-                        <th className="py-2">Compte Google / Campus</th>
-                        <th className="py-2 text-right">Action Extrême</th>
+                        <th className="py-2">Utilisateur</th>
+                        <th className="py-2">Rôle / Campus</th>
+                        <th className="py-2">Mot de passe</th>
+                        <th className="py-2 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1019,30 +1114,98 @@ export function Settings() {
                         .filter(u => u.schoolId === activeSchoolId && (u.role === UserRole.SECRETAIRE || u.role === UserRole.DIRECTRICE))
                         .map(secUser => {
                           const associatedCampus = campuses.find(c => c.id === secUser.campusId);
+                          const userPassword = secUser.password || "lingua123";
+                          const isPasswordVisible = visiblePasswords[secUser.id];
+                          const isEditingThisUser = editingUserId === secUser.id;
+
                           return (
                             <tr key={secUser.id} className="hover:bg-slate-50/45 transition-colors">
                               <td className="py-3 pr-2">
                                 <div className="font-semibold text-slate-700">{secUser.name}</div>
                                 <div className="font-mono text-slate-400 text-[10px] truncate max-w-[150px]">{secUser.email}</div>
                               </td>
-                              <td className="py-3">
-                                <span className={`inline-block px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${
-                                  secUser.role === UserRole.DIRECTRICE 
-                                    ? "bg-purple-100 text-purple-700" 
-                                    : "bg-blue-100 text-blue-700"
-                                }`}>
-                                  {secUser.role === UserRole.DIRECTRICE ? "Directrice" : "Secrétaire"}
-                                </span>
+                              <td className="py-3 space-y-1">
+                                <div>
+                                  <span className={`inline-block px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${
+                                    secUser.role === UserRole.DIRECTRICE 
+                                      ? "bg-purple-100 text-purple-700" 
+                                      : "bg-blue-100 text-blue-700"
+                                  }`}>
+                                    {secUser.role === UserRole.DIRECTRICE ? "Directrice" : "Secrétaire"}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className={`inline-block px-2 py-0.5 rounded-md font-medium text-[10px] ${
+                                    associatedCampus ? "bg-slate-100 text-slate-700" : "bg-indigo-50 text-indigo-700 font-bold"
+                                  }`}>
+                                    {associatedCampus ? associatedCampus.name : "Accès Global"}
+                                  </span>
+                                </div>
                               </td>
-                              <td className="py-3">
-                                <span className={`inline-block px-2 py-0.5 rounded-md font-medium text-[10px] ${
-                                  associatedCampus ? "bg-slate-100 text-slate-700" : "bg-indigo-55 bg-indigo-50 text-indigo-700 font-bold"
-                                }`}>
-                                  {associatedCampus ? associatedCampus.name : "Accès Global"}
-                                </span>
+                              <td className="py-3 pr-2">
+                                {isEditingThisUser ? (
+                                  <div className="flex items-center gap-1 max-w-[190px]">
+                                    <input
+                                      type="text"
+                                      value={newPasswordInput}
+                                      onChange={(e) => setNewPasswordInput(e.target.value)}
+                                      placeholder="Nouveau mdp"
+                                      className="w-full text-xs font-mono border border-indigo-300 rounded-lg px-2 py-1 outline-hidden focus:border-indigo-600"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={updatingPassword}
+                                      onClick={() => handleUpdatePassword(secUser.id)}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg p-1 text-[10px] font-bold cursor-pointer disabled:bg-slate-300"
+                                      title="Enregistrer le mot de passe"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingUserId(null); setNewPasswordInput(""); }}
+                                      className="bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg p-1 text-[10px] cursor-pointer"
+                                      title="Annuler"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-700">
+                                    <span className="bg-slate-100 border border-slate-200 px-2 py-1 rounded-md text-[11px]">
+                                      {isPasswordVisible ? userPassword : "••••••••"}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => togglePasswordVisibility(secUser.id)}
+                                      className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                      title={isPasswordVisible ? "Masquer" : "Afficher"}
+                                    >
+                                      {isPasswordVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyPassword(secUser.id, userPassword)}
+                                      className="text-slate-400 hover:text-indigo-600 p-1 cursor-pointer"
+                                      title="Copier le mot de passe"
+                                    >
+                                      {copiedId === secUser.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                    </button>
+                                    {currentUser?.role === UserRole.DIRECTRICE || currentUser?.role === UserRole.SUPERADMIN ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditingUserId(secUser.id); setNewPasswordInput(userPassword); }}
+                                        className="text-slate-400 hover:text-amber-600 p-1 cursor-pointer ml-0.5"
+                                        title="Modifier ce mot de passe"
+                                      >
+                                        <Edit2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                )}
                               </td>
                               <td className="py-3 text-right">
-                                {currentUser.id !== secUser.id ? (
+                                {currentUser?.id !== secUser.id ? (
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteSecretary(secUser.id)}

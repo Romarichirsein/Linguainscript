@@ -88,6 +88,7 @@ interface DataContextType {
   renewSchoolSubscription: (schoolId: string, pack: "basique" | "premium" | "integral", months: number, customExpiryDate?: string) => Promise<void>;
   addStaffUser: (name: string, email: string, role: UserRole, campusId: string | null, schoolId?: string | null, password?: string) => Promise<void>;
   deleteStaffUser: (userId: string) => Promise<void>;
+  updateStaffUserPassword: (userId: string, newPassword: string) => Promise<void>;
 
   // Plan Configurations
   plansConfig: PlanConfig[];
@@ -933,6 +934,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Deleted school staff member successfully:", userId);
     } catch (error) {
       console.error("Failed to delete staff member:", error);
+      handleFirestoreError(error, OperationType.WRITE, `users/${userId}`);
+    }
+  };
+
+  const updateStaffUserPassword = async (userId: string, newPassword: string) => {
+    checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Modification du mot de passe utilisateur");
+    try {
+      await updateDoc(doc(db, "users", userId), { password: newPassword.trim() });
+      console.log("Updated staff member password successfully:", userId);
+    } catch (error) {
+      console.error("Failed to update staff member password:", error);
       handleFirestoreError(error, OperationType.WRITE, `users/${userId}`);
     }
   };
@@ -2418,6 +2430,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         renewSchoolSubscription,
         addStaffUser,
         deleteStaffUser,
+        updateStaffUserPassword,
         plansConfig,
         updatePlanConfig,
         currentPlan,

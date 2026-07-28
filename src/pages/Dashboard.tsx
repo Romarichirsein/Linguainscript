@@ -49,6 +49,11 @@ const frenchMonths = [
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
 ];
 
+interface DashboardProps {
+  setCurrentTab: (tab: string) => void;
+  setSelectedStudentId?: (id: string | null) => void;
+}
+
 export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelectedStudentId }) => {
   const { 
     currentUser, 
