@@ -3,7 +3,13 @@ import { Student, Payment, Class, Campus, SchoolConfig } from "../types";
 
 /** Format a number with dot as thousands separator (e.g. 180000 → 180.000) */
 function formatFCFA(amount: number): string {
-  return amount.toLocaleString("fr-FR").replace(/\s/g, ".") + " FCFA";
+  const parts = Math.round(amount).toString().split("");
+  const result: string[] = [];
+  for (let i = parts.length - 1, count = 0; i >= 0; i--, count++) {
+    if (count > 0 && count % 3 === 0) result.unshift(".");
+    result.unshift(parts[i]);
+  }
+  return result.join("") + " FCFA";
 }
 
 /** Helper to load an image asynchronously */
@@ -154,108 +160,108 @@ export async function generateReceipt(
 
     // Student & Class Info Box
     doc.setFillColor(248, 250, 252);
-    doc.rect(10, 53, 128, 42, "F");
+    doc.rect(10, 53, 128, 46, "F");
     doc.setDrawColor(241, 245, 249);
-    doc.rect(10, 53, 128, 42, "S");
+    doc.rect(10, 53, 128, 46, "S");
 
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(9.5);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text("INFORMATIONS ÉTUDIANT", 14, 60);
+    doc.text("INFORMATIONS ÉTUDIANT", 14, 61);
 
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Nom : ${student.firstName.toUpperCase()} ${student.lastName.toUpperCase()}`, 14, 67);
-    doc.text(`Contact : ${student.phone}`, 14, 73);
+    doc.text(`Nom : ${student.firstName.toUpperCase()} ${student.lastName.toUpperCase()}`, 14, 69);
+    doc.text(`Contact : ${student.phone}`, 14, 76);
 
     doc.setFont("Helvetica", "normal");
-    doc.text(`Parent : ${student.parentName} (${student.parentPhone})`, 14, 79);
+    doc.text(`Parent : ${student.parentName} (${student.parentPhone})`, 14, 83);
 
     const classLabel = selectedClass 
       ? `Cours : ${selectedClass.language} ${selectedClass.level} [période ${selectedClass.period}]`
       : "Cours : Non assigné";
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text(classLabel, 14, 87);
+    doc.text(classLabel, 14, 92);
 
     // Payment break-down Table
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(9.5);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text("DÉTAIL DU RÈGLEMENT", 10, 107);
+    doc.text("DÉTAIL DU RÈGLEMENT", 10, 112);
 
     // Table headers
     doc.setFillColor(241, 245, 249);
-    doc.rect(10, 111, 128, 7, "F");
+    doc.rect(10, 116, 128, 7, "F");
 
     doc.setFontSize(8);
     doc.setTextColor(71, 85, 105);
-    doc.text("Description", 14, 116);
-    doc.text("Mode", 70, 116);
-    doc.text("Montant", 134, 116, { align: "right" });
+    doc.text("Description", 14, 121);
+    doc.text("Mode", 70, 121);
+    doc.text("Montant", 134, 121, { align: "right" });
 
     // Table content
     doc.setFont("Helvetica", "normal");
     doc.setTextColor(30, 41, 59);
     const desc = payment.note || "Frais d'inscription scolaire";
-    doc.text(desc.length > 35 ? desc.substring(0, 35) + "..." : desc, 14, 125);
-    doc.text(payment.mode, 70, 125);
+    doc.text(desc.length > 35 ? desc.substring(0, 35) + "..." : desc, 14, 130);
+    doc.text(payment.mode, 70, 130);
     doc.setFont("Helvetica", "bold");
-    doc.text(formatFCFA(payment.amount), 134, 125, { align: "right" });
+    doc.text(formatFCFA(payment.amount), 134, 130, { align: "right" });
 
     doc.setDrawColor(241, 245, 249);
-    doc.line(10, 129, 138, 129);
+    doc.line(10, 135, 138, 135);
 
     // Calculate totals
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(9);
-    doc.text("Frais de scolarité totaux :", 80, 137, { align: "right" });
-    doc.text(formatFCFA(student.totalAmount), 134, 137, { align: "right" });
+    doc.text("Frais de scolarité totaux :", 80, 143, { align: "right" });
+    doc.text(formatFCFA(student.totalAmount), 134, 143, { align: "right" });
 
-    doc.text("Total réglé à ce jour :", 80, 143, { align: "right" });
+    doc.text("Total réglé à ce jour :", 80, 150, { align: "right" });
     doc.setTextColor(16, 185, 129); // Green text for paid
-    doc.text(formatFCFA(student.paidAmount), 134, 143, { align: "right" });
+    doc.text(formatFCFA(student.paidAmount), 134, 150, { align: "right" });
 
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(30, 41, 59);
-    doc.text("Reste à recouvrer (Solde) :", 80, 150, { align: "right" });
+    doc.text("Reste à recouvrer (Solde) :", 80, 158, { align: "right" });
     if (student.balance > 0) {
       doc.setTextColor(239, 68, 68); // Red text for balance
     }
-    doc.text(formatFCFA(student.balance), 134, 150, { align: "right" });
+    doc.text(formatFCFA(student.balance), 134, 158, { align: "right" });
 
     // Expiration Details
     doc.setDrawColor(241, 245, 249);
-    doc.line(10, 156, 138, 156);
+    doc.line(10, 165, 138, 165);
 
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Période de validité de l'inscription :`, 10, 163);
-    doc.setFont("Helvetica", "semibold");
+    doc.text("Période de validité de l'inscription :", 10, 172);
+    doc.setFont("Helvetica", "bold");
     doc.setTextColor(30, 41, 59);
-    doc.text(`Du ${new Date(student.enrollmentDate).toLocaleDateString("fr-FR")} au ${new Date(student.expirationDate).toLocaleDateString("fr-FR")}`, 10, 167);
+    doc.text(`Du ${new Date(student.enrollmentDate).toLocaleDateString("fr-FR")} au ${new Date(student.expirationDate).toLocaleDateString("fr-FR")}`, 10, 178);
 
     // Signatures
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Reçu encaissé par : ${payment.recordedBy.userName}`, 10, 178);
+    doc.text(`Reçu encaissé par : ${payment.recordedBy.userName}`, 10, 188);
 
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(30, 41, 59);
-    doc.text("Signature et Cachet de l'École", 90, 178);
+    doc.text("Signature et Cachet de l'École", 90, 188);
 
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.2);
-    doc.line(90, 194, 138, 194);
+    doc.line(90, 198, 138, 198);
 
     // Terms
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
-    doc.text("Ce reçu fait foi d'inscription officielle et de validation de paiement.", 74, 201, { align: "center" });
+    doc.text("Ce reçu fait foi d'inscription officielle et de validation de paiement.", 74, 204, { align: "center" });
 
     // Download the PDF file directly
     const normalizedFirstName = student.firstName.toLowerCase().replace(/[^a-z0-9]/g, "_");
