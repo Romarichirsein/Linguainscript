@@ -64,8 +64,12 @@ export const Classes: React.FC = () => {
   const [classTeacherId, setClassTeacherId] = useState("");
   const [classCampusId, setClassCampusId] = useState("");
   const [classMaxStudents, setClassMaxStudents] = useState("20");
-  const [classStartDate, setClassStartDate] = useState("2026-06-01");
-  const [classEndDate, setClassEndDate] = useState("2027-06-01");
+  const [classStartDate, setClassStartDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [classEndDate, setClassEndDate] = useState(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().split("T")[0];
+  });
   const [editingClass, setEditingClass] = useState<Class | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
