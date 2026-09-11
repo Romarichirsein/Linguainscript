@@ -122,7 +122,7 @@ interface DataContextType {
   deleteClass: (id: string) => Promise<void>;
   updateLanguage: (oldName: string, newName: string) => Promise<void>;
   
-  promoteFromWaitlist: (waitlistId: string, paymentAmount: number, mode: "Espèces" | "Mobile Money" | "Virement") => Promise<{ success: boolean; message: string }>;
+  promoteFromWaitlist: (waitlistId: string, paymentAmount?: number, mode?: "Espèces" | "Mobile Money" | "Virement") => Promise<{ success: boolean; message: string }>;
   removeFromWaitlist: (waitlistId: string) => Promise<void>;
   promoteStudentFromWaitlist: (studentId: string, force?: boolean) => Promise<{ success: boolean; message: string }>;
   updateStudentStatus: (studentId: string, status: any) => Promise<void>;

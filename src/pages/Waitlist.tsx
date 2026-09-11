@@ -108,7 +108,7 @@ export const Waitlist: React.FC = () => {
           alert(`Erreur: ${response.message}`);
         }
       } else if (item.source === "waitlist_entry" && item.rawEntry) {
-        const response = await promoteFromWaitlist(item.rawEntry.id);
+        const response = await promoteFromWaitlist(item.rawEntry.id, 0, "Espèces");
         if (response.success) {
           alert(`Félicitations ! ${item.firstName} ${item.lastName} a été officiellement admis en classe.`);
         } else {

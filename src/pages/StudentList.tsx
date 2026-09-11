@@ -53,6 +53,7 @@ export const StudentList: React.FC<StudentListProps> = ({
   const [payAmount, setPayAmount] = useState("");
   const [payMode, setPayMode] = useState<"Espèces" | "Mobile Money" | "Virement">("Espèces");
   const [payNote, setPayNote] = useState("");
+  const [isPayingFast, setIsPayingFast] = useState(false);
 
   // Edit/Delete modal state
   const [editModalStudent, setEditModalStudent] = useState<Student | null>(null);
@@ -301,7 +302,7 @@ export const StudentList: React.FC<StudentListProps> = ({
     setPayNote("Solde d'inscription");
   };
 
-  const submitFastPayment = (e: React.FormEvent) => {
+  const submitFastPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentModalStudent) return;
 
@@ -317,12 +318,18 @@ export const StudentList: React.FC<StudentListProps> = ({
       }
     }
 
-    addPayment(paymentModalStudent.id, amount, payMode, payNote);
-    
-    // Refresh modal student view state
-    setPaymentModalStudent(null);
-    setPayAmount("");
-    setPayNote("");
+    try {
+      setIsPayingFast(true);
+      await addPayment(paymentModalStudent.id, amount, payMode, payNote);
+      // Refresh modal student view state
+      setPaymentModalStudent(null);
+      setPayAmount("");
+      setPayNote("");
+    } catch (error: any) {
+      alert(error?.message || "Erreur lors de l'enregistrement du paiement.");
+    } finally {
+      setIsPayingFast(false);
+    }
   };
 
   return (
@@ -1007,9 +1014,10 @@ export const StudentList: React.FC<StudentListProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-200 cursor-pointer"
+                  disabled={isPayingFast}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Valider l'Encaissement
+                  {isPayingFast ? "Validation..." : "Valider l'Encaissement"}
                 </button>
               </div>
             </form>
