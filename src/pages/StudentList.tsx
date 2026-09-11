@@ -539,11 +539,14 @@ export const StudentList: React.FC<StudentListProps> = ({
               className="rounded-xl border border-slate-200 p-2 text-xs text-slate-700 bg-white"
             >
               <option value="">Toutes les Classes</option>
-              {classes.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.language} {c.level} — {c.period} ({c.teacherName || "Sans Enseignant"})
-                </option>
-              ))}
+              {classes.map(c => {
+                const tName = teachers.find(t => t.id === c.teacherId)?.name || c.teacherName || "Sans Enseignant";
+                return (
+                  <option key={c.id} value={c.id}>
+                    {c.language} {c.level} — {c.period} ({tName})
+                  </option>
+                );
+              })}
             </select>
           </div>
 

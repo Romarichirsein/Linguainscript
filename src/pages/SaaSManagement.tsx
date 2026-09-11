@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useData } from "../context/DataContext";
 import { UserRole, School } from "../types";
 import { 
@@ -25,11 +26,16 @@ import {
   Bell,
   Pencil,
   Trash2,
-  X
+  X,
+  Eye,
+  EyeOff,
+  Dices,
+  Lock
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 
 export function SaaSManagement() {
+  const navigate = useNavigate();
   const { 
     currentUser,
     schools, 
@@ -53,7 +59,8 @@ export function SaaSManagement() {
     updatePlanConfig,
     systemNotifications,
     updateSystemNotification,
-    approveSchoolRenewal
+    approveSchoolRenewal,
+    getSchoolSlug
   } = useData();
 
   if (currentUser?.role !== UserRole.SUPERADMIN) {
@@ -250,6 +257,8 @@ export function SaaSManagement() {
   const [newSubType, setNewSubType] = useState<"basique" | "premium" | "integral">("basique");
   const [newMonths, setNewMonths] = useState(1);
   const [newCustomExpiryDate, setNewCustomExpiryDate] = useState("");
+  const [newDirPassword, setNewDirPassword] = useState("");
+  const [showNewDirPassword, setShowNewDirPassword] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -322,21 +331,24 @@ export function SaaSManagement() {
     setRegistering(true);
     setSuccessMsg("");
     try {
+      const passwordToUse = newDirPassword.trim() || "lingua123";
       await registerSchool(
         newSchoolName.trim(),
         newDirName.trim(),
         newDirEmail.trim().toLowerCase(),
         newSubType,
         newMonths,
-        newCustomExpiryDate || undefined
+        newCustomExpiryDate || undefined,
+        passwordToUse
       );
-      setSuccessMsg(`Félicitations ! L'école "${newSchoolName}" a été créée, le campus bootstrappé et le compte Directrice pour ${newDirName} (${newDirEmail}) a été configuré.`);
+      setSuccessMsg(`Félicitations ! L'école "${newSchoolName}" a été créée, le campus bootstrappé et le compte Directrice pour ${newDirName} (${newDirEmail}) a été configuré avec le mot de passe : ${passwordToUse}`);
       setNewSchoolName("");
       setNewDirName("");
       setNewDirEmail("");
       setNewCustomExpiryDate("");
       setNewMonths(1);
-      setTimeout(() => setSuccessMsg(""), 6000);
+      setNewDirPassword("");
+      setTimeout(() => setSuccessMsg(""), 7000);
     } catch (err) {
       console.error(err);
       alert("Erreur lors de la création de l'école");
@@ -805,6 +817,8 @@ export function SaaSManagement() {
                             <button
                               onClick={() => {
                                 setActiveSchoolId(school.id);
+                                const slug = getSchoolSlug(school.name);
+                                navigate(`/${slug}/tableau-de-bord`);
                               }}
                               title="Imiter / Gérer l'école"
                               className={`rounded-lg p-1.5 transition-all border cursor-pointer ${
@@ -949,6 +963,51 @@ export function SaaSManagement() {
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* Password field */}
+                <div>
+                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">
+                    <Lock className="inline h-3 w-3 mr-1" />
+                    Mot de passe Directrice (Laisser vide = "lingua123")
+                  </label>
+                  <div className="relative flex gap-2">
+                    <div className="relative flex-1">
+                      <Lock className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type={showNewDirPassword ? "text" : "password"}
+                        placeholder="lingua123"
+                        value={newDirPassword}
+                        onChange={(e) => setNewDirPassword(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 pl-9 pr-9 py-1.5 text-xs text-slate-800 outline-hidden focus:border-indigo-500 focus:bg-white transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewDirPassword(!showNewDirPassword)}
+                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title={showNewDirPassword ? "Masquer" : "Afficher"}
+                      >
+                        {showNewDirPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#";
+                        let pwd = "";
+                        for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+                        setNewDirPassword(pwd);
+                        setShowNewDirPassword(true);
+                      }}
+                      className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 text-xs text-slate-600 font-semibold transition-all cursor-pointer flex items-center gap-1"
+                      title="Générer un mot de passe aléatoire"
+                    >
+                      <Dices className="h-3.5 w-3.5" /> Générer
+                    </button>
+                  </div>
+                  <span className="text-[9px] font-mono text-slate-400 mt-1 block">
+                    💡 Ce mot de passe sera utilisé par la Directrice et sa Secrétaire pour se connecter.
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

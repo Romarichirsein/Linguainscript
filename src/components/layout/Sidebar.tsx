@@ -29,14 +29,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   setIsOpen
 }) => {
-  const { currentUser, logout, schoolConfig, currentPlan } = useData();
+  const { currentUser, logout, schoolConfig, currentPlan, activeSchoolId } = useData();
   const { t } = useTranslation();
   const isDirectrice = currentUser?.role === UserRole.DIRECTRICE;
   const isSuperAdmin = currentUser?.role === UserRole.SUPERADMIN;
-  const canSeeAdminMenu = isDirectrice; // SuperAdmin does NOT manage students
+  const canSeeAdminMenu = isDirectrice;
 
   const handleTabClick = (tabId: string) => {
-    if (currentPlan) {
+    if (currentPlan && !isSuperAdmin) {
       if (tabId === "newStudent" && !currentPlan.canCreateStudents) {
         alert(`⚠️ Fonctionnalité Bloquée : La création d'élèves n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer à un pack supérieur.`);
         return;
@@ -169,16 +169,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {!isSuperAdmin && (
+          {(!isSuperAdmin || activeSchoolId) && (
             <div>
               <p className="px-2 font-sans text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2">
-                {t("mainMenu")}
+                {isSuperAdmin ? "Inspection École (Menu)" : t("mainMenu")}
               </p>
               <nav className="space-y-1">
                 {menuItems.map(item => {
                   const Icon = item.icon;
                   const isActive = currentTab === item.id;
-                  const isLocked = currentPlan && (
+                  const isLocked = !isSuperAdmin && currentPlan && (
                     (item.id === "newStudent" && !currentPlan.canCreateStudents) ||
                     (item.id === "waitlist" && !currentPlan.canManageWaitlist)
                   );
@@ -203,16 +203,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {canSeeAdminMenu && (
+          {(canSeeAdminMenu || (isSuperAdmin && activeSchoolId)) && (
             <div>
               <p className="px-2 font-sans text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2">
-                {t("administration")}
+                {isSuperAdmin ? "Inspection École (Administration)" : t("administration")}
               </p>
               <nav className="space-y-1">
                 {adminMenuItems.map(item => {
                   const Icon = item.icon;
                   const isActive = currentTab === item.id;
-                  const isLocked = currentPlan && (
+                  const isLocked = !isSuperAdmin && currentPlan && (
                     (item.id === "reports" && !currentPlan.canViewReports) ||
                     (item.id === "renewals" && !currentPlan.canManageRenewals) ||
                     (item.id === "classes" && !currentPlan.canManageClasses) ||

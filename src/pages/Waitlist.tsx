@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 export const Waitlist: React.FC = () => {
-  const { students, classes, campuses, promoteStudentFromWaitlist, updateStudentStatus } = useData();
+  const { students, classes, campuses, promoteStudentFromWaitlist, updateStudentStatus, waitlist, promoteFromWaitlist, removeFromWaitlist } = useData();
 
   // Find students in waitlist status
   const waitlistStudents = useMemo(() => {
@@ -20,7 +20,7 @@ export const Waitlist: React.FC = () => {
   }, [students]);
 
   // Compute metrics
-  const totalInQueue = waitlistStudents.length;
+  const totalInQueue = waitlistStudents.length + waitlist.length;
 
   const classesWithOpening = useMemo(() => {
     // Counts classes with waitlist candidates that now have vacant seats
@@ -37,30 +37,100 @@ export const Waitlist: React.FC = () => {
       }
     });
 
-    return count;
-  }, [waitlistStudents, classes]);
+    waitlist.forEach(w => {
+      if (evaluatedClasses.has(w.classId)) return;
+      evaluatedClasses.add(w.classId);
 
-  const handlePromote = (student: Student) => {
-    const cls = classes.find(c => c.id === student.classId);
+      const cls = classes.find(c => c.id === w.classId);
+      if (cls && cls.currentCount < cls.maxStudents) {
+        count++;
+      }
+    });
+
+    return count;
+  }, [waitlistStudents, waitlist, classes]);
+
+  // Unified waitlist items from both WaitlistEntry and Student (en_attente)
+  const unifiedWaitlist = useMemo(() => {
+    const fromStudents = waitlistStudents.map(s => ({
+      id: s.id,
+      source: "student" as const,
+      firstName: s.firstName,
+      lastName: s.lastName,
+      phone: s.phone,
+      parentName: s.parentName || "Non renseigné",
+      parentPhone: s.parentPhone || s.phone,
+      classId: s.classId,
+      campusId: s.campusId,
+      date: s.enrollmentDate,
+      rawStudent: s
+    }));
+
+    const fromWaitlist = waitlist.map(w => {
+      const targetClass = classes.find(c => c.id === w.classId);
+      const nameParts = (w.studentName || "Élève Inconnu").split(" ");
+      return {
+        id: w.id,
+        source: "waitlist_entry" as const,
+        firstName: nameParts[0] || "Élève",
+        lastName: nameParts.slice(1).join(" ") || "En attente",
+        phone: w.studentPhone || "",
+        parentName: "Responsable légal",
+        parentPhone: w.studentPhone || "",
+        classId: w.classId,
+        campusId: targetClass?.campusId || "",
+        date: w.addedAt ? w.addedAt.split("T")[0] : "",
+        rawEntry: w
+      };
+    });
+
+    return [...fromStudents, ...fromWaitlist];
+  }, [waitlistStudents, waitlist, classes]);
+
+  const handlePromote = async (item: typeof unifiedWaitlist[0]) => {
+    const cls = classes.find(c => c.id === item.classId);
     if (!cls) return;
 
+    let force = false;
     if (cls.currentCount >= cls.maxStudents) {
       if (!window.confirm("Attention: Cette classe a déjà atteint sa capacité maximale de places. Souhaitez-vous forcer l'admission de cet élève outre-quota ?")) {
         return;
       }
+      force = true;
     }
 
-    const response = promoteStudentFromWaitlist(student.id);
-    if (response.success) {
-      alert(`Félicitations ! ${student.firstName} ${student.lastName} a été officiellement admis en classe.`);
-    } else {
-      alert(`Erreur: ${response.message}`);
+    try {
+      if (item.source === "student" && item.rawStudent) {
+        const response = await promoteStudentFromWaitlist(item.rawStudent.id, force);
+        if (response.success) {
+          alert(`Félicitations ! ${item.firstName} ${item.lastName} a été officiellement admis en classe.`);
+        } else {
+          alert(`Erreur: ${response.message}`);
+        }
+      } else if (item.source === "waitlist_entry" && item.rawEntry) {
+        const response = await promoteFromWaitlist(item.rawEntry.id);
+        if (response.success) {
+          alert(`Félicitations ! ${item.firstName} ${item.lastName} a été officiellement admis en classe.`);
+        } else {
+          alert(`Erreur: ${response.message}`);
+        }
+      }
+    } catch (err: any) {
+      alert(`Erreur lors de l'admission : ${err?.message || "Erreur système"}`);
     }
   };
 
-  const handleCancelWaitlist = (student: Student) => {
-    if (window.confirm(`Êtes-vous sûr de vouloir retirer ${student.firstName} du registre d'attente ?`)) {
-      updateStudentStatus(student.id, "expiré"); // Retire de l'attente active
+  const handleCancelWaitlist = async (item: typeof unifiedWaitlist[0]) => {
+    if (window.confirm(`Êtes-vous sûr de vouloir retirer ${item.firstName} du registre d'attente ?`)) {
+      try {
+        if (item.source === "student" && item.rawStudent) {
+          await updateStudentStatus(item.rawStudent.id, "expiré");
+        } else if (item.source === "waitlist_entry" && item.rawEntry) {
+          await removeFromWaitlist(item.rawEntry.id);
+        }
+      } catch (err: any) {
+        alert(`Erreur : ${err?.message || "Erreur système"}`);
+      }
     }
   };
 
@@ -121,34 +191,34 @@ export const Waitlist: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {waitlistStudents.length === 0 ? (
+              {unifiedWaitlist.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-xs">
                     File d'attente vide ! Toutes les demandes d'affectations d'inscriptions sont honorées.
                   </td>
                 </tr>
               ) : (
-                waitlistStudents.map(student => {
-                  const sClass = classes.find(c => c.id === student.classId);
-                  const sCampus = campuses.find(c => c.id === student.campusId)?.name || "Non spécifié";
+                unifiedWaitlist.map(item => {
+                  const sClass = classes.find(c => c.id === item.classId);
+                  const sCampus = campuses.find(c => c.id === (item.campusId || sClass?.campusId))?.name || "Non spécifié";
                   
                   const isFull = sClass ? sClass.currentCount >= sClass.maxStudents : false;
-                  const waitingFrom = new Date(student.enrollmentDate).toLocaleDateString("fr-FR");
+                  const waitingFrom = item.date ? new Date(item.date).toLocaleDateString("fr-FR") : "-";
 
                   return (
-                    <tr key={student.id} className="hover:bg-slate-50/50">
+                    <tr key={item.id} className="hover:bg-slate-50/50">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700 uppercase">
-                            {student.firstName[0]}
-                            {student.lastName[0]}
+                            {item.firstName[0] || "?"}
+                            {item.lastName[0] || "?"}
                           </div>
                           <div>
                             <h4 className="font-semibold text-slate-800">
-                              {student.firstName} {student.lastName}
+                              {item.firstName} {item.lastName}
                             </h4>
                             <p className="text-[10px] text-slate-500 font-mono">
-                              ID : {student.id} • {student.phone}
+                              ID : {item.id} {item.phone ? `• ${item.phone}` : ""}
                             </p>
                           </div>
                         </div>
@@ -171,8 +241,8 @@ export const Waitlist: React.FC = () => {
 
                       <td className="px-6 py-4">
                         <div className="text-slate-600 text-xs">
-                          <p className="font-semibold text-slate-700">{student.parentName}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">{student.parentPhone}</p>
+                          <p className="font-semibold text-slate-700">{item.parentName}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">{item.parentPhone}</p>
                         </div>
                       </td>
 
@@ -205,7 +275,7 @@ export const Waitlist: React.FC = () => {
                         <div className="inline-flex items-center gap-1">
                           {/* Promote Button */}
                           <button
-                            onClick={() => handlePromote(student)}
+                            onClick={() => handlePromote(item)}
                             title="Admettre officiellement l'élève"
                             className="rounded-xl bg-blue-600 hover:bg-blue-700 px-3 py-1.5 font-bold text-[10px] text-white flex items-center gap-1 cursor-pointer shadow shadow-blue-150"
                           >
@@ -214,7 +284,7 @@ export const Waitlist: React.FC = () => {
 
                           {/* Cancel waiting */}
                           <button
-                            onClick={() => handleCancelWaitlist(student)}
+                            onClick={() => handleCancelWaitlist(item)}
                             title="Retirer de la file d'attente"
                             className="rounded-lg p-2 text-slate-405 hover:bg-red-50 hover:text-red-650 transition-colors cursor-pointer"
                           >

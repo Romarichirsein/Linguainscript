@@ -56,6 +56,8 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
   const [renewalAmount, setRenewalAmount] = useState("180000");
   const [renewalPayment, setRenewalPayment] = useState("180000");
   const [renewalMode, setRenewalMode] = useState<"Espèces" | "Mobile Money" | "Virement">("Espèces");
+  const [isPaying, setIsPaying] = useState(false);
+  const [isRenewing, setIsRenewing] = useState(false);
 
   // Lookup entities
   const student = useMemo(() => {
@@ -163,7 +165,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
     );
   }
 
-  const handlePaySubmit = (e: React.FormEvent) => {
+  const handlePaySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = parseFloat(payAmount);
     if (!amount || amount <= 0) {
@@ -171,14 +173,20 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
       return;
     }
 
-    addPayment(student.id, amount, payMode, payNote);
-    
-    // Clear inputs
-    setPayAmount("");
-    setPayNote("");
+    try {
+      setIsPaying(true);
+      await addPayment(student.id, amount, payMode, payNote);
+      // Clear inputs
+      setPayAmount("");
+      setPayNote("");
+    } catch (error: any) {
+      alert(error?.message || "Une erreur est survenue lors de l'enregistrement du paiement.");
+    } finally {
+      setIsPaying(false);
+    }
   };
 
-  const handleRenewalSubmit = (e: React.FormEvent) => {
+  const handleRenewalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cost = parseFloat(renewalAmount);
     const initialPay = parseFloat(renewalPayment);
@@ -188,13 +196,21 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
       return;
     }
 
-    // Extend expiration date for 1 year
-    const nextYear = new Date(student.expirationDate);
-    nextYear.setFullYear(nextYear.getFullYear() + 1);
-    const newExp = nextYear.toISOString().split("T")[0];
+    try {
+      setIsRenewing(true);
+      // Extend expiration date for 1 year
+      const baseDate = student.expirationDate ? new Date(student.expirationDate) : new Date();
+      const nextYear = isNaN(baseDate.getTime()) ? new Date() : new Date(baseDate);
+      nextYear.setFullYear(nextYear.getFullYear() + 1);
+      const newExp = nextYear.toISOString().split("T")[0];
 
-    renewStudent(student.id, newExp, cost, initialPay, renewalMode);
-    setShowRenewalModal(false);
+      await renewStudent(student.id, newExp, cost, initialPay, renewalMode);
+      setShowRenewalModal(false);
+    } catch (error: any) {
+      alert(error?.message || "Une erreur est survenue lors du renouvellement.");
+    } finally {
+      setIsRenewing(false);
+    }
   };
 
   const triggerExportReceipt = (pay: any) => {
@@ -855,9 +871,10 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
                       <div className="sm:col-span-2 flex justify-end">
                         <button
                           type="submit"
-                          className="rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer"
+                          disabled={isPaying}
+                          className="rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Enregistrer l'Émargement
+                          {isPaying ? "Enregistrement..." : "Enregistrer l'Émargement"}
                         </button>
                       </div>
                     </form>
@@ -1287,9 +1304,10 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer"
+                  disabled={isRenewing}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Valider la Réinscription
+                  {isRenewing ? "Validation..." : "Valider la Réinscription"}
                 </button>
               </div>
             </form>

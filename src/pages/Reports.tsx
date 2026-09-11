@@ -51,11 +51,12 @@ export const Reports: React.FC = () => {
       // Start of current week (Monday)
       const day = today.getDay();
       const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-      start = new Date(today.setDate(diff));
+      start = new Date(today);
+      start.setDate(diff);
       start.setHours(0, 0, 0, 0);
       end = new Date(); // To right now
     } else if (selectedPeriod === "month") {
-      // Start of current month (June 2026 in mock)
+      // Start of current month
       start = new Date(today.getFullYear(), today.getMonth(), 1);
       end = new Date();
     } else if (selectedPeriod === "prevMonth") {

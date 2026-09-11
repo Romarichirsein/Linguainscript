@@ -84,7 +84,9 @@ interface DataContextType {
   schoolSlug: string | null;
   getSchoolSlug: (name: string) => string;
   findSchoolBySlug: (slug: string) => School | null;
-  registerSchool: (name: string, dirName: string, dirEmail: string, pack: "basique" | "premium" | "integral", months: number, customExpiryDate?: string) => Promise<void>;
+  registerSchool: (name: string, dirName: string, dirEmail: string, pack: "basique" | "premium" | "integral", months: number, customExpiryDate?: string, password?: string) => Promise<void>;
+  updateSchool: (schoolId: string, updated: Partial<School>) => Promise<void>;
+  deleteSchool: (schoolId: string) => Promise<void>;
   renewSchoolSubscription: (schoolId: string, pack: "basique" | "premium" | "integral", months: number, customExpiryDate?: string) => Promise<void>;
   addStaffUser: (name: string, email: string, role: UserRole, campusId: string | null, schoolId?: string | null, password?: string) => Promise<void>;
   deleteStaffUser: (userId: string) => Promise<void>;
@@ -122,6 +124,8 @@ interface DataContextType {
   
   promoteFromWaitlist: (waitlistId: string, paymentAmount: number, mode: "Espèces" | "Mobile Money" | "Virement") => Promise<{ success: boolean; message: string }>;
   removeFromWaitlist: (waitlistId: string) => Promise<void>;
+  promoteStudentFromWaitlist: (studentId: string, force?: boolean) => Promise<{ success: boolean; message: string }>;
+  updateStudentStatus: (studentId: string, status: any) => Promise<void>;
   resetDatabase: () => Promise<void>;
   schoolConfig: SchoolConfig | null;
   updateSchoolConfig: (newConfig: Partial<SchoolConfig>) => Promise<void>;
@@ -710,7 +714,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dirEmail: string,
     pack: "basique" | "premium" | "integral",
     months: number,
-    customExpiryDate?: string
+    customExpiryDate?: string,
+    password?: string
   ) => {
     checkRoleAccess([UserRole.SUPERADMIN], "Enregistrement d'un établissement SaaS");
     const schoolId = `school_${Date.now()}`;
@@ -798,7 +803,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: dirEmail.trim().toLowerCase(),
         role: UserRole.DIRECTRICE,
         schoolId,
-        campusId: null
+        campusId: null,
+        password: password?.trim() || "lingua123"
       });
 
       console.log(`School ${name} created and bootstrapped successfully with custom Directrice profile.`);
@@ -848,6 +854,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const schoolRef = doc(db, "schools", schoolId);
       await updateDoc(schoolRef, updated);
+
+      // Synchronize directrice user profile if email or name was updated
+      if (updated.directriceEmail || updated.directriceName) {
+        try {
+          const userQuery = query(collection(db, "users"), where("schoolId", "==", schoolId), where("role", "==", UserRole.DIRECTRICE));
+          const userSnap = await getDocs(userQuery);
+          if (!userSnap.empty) {
+            const batch = writeBatch(db);
+            userSnap.forEach(uDoc => {
+              const uUpdate: any = {};
+              if (updated.directriceEmail) uUpdate.email = updated.directriceEmail.trim().toLowerCase();
+              if (updated.directriceName) uUpdate.name = updated.directriceName.trim();
+              batch.update(uDoc.ref, uUpdate);
+            });
+            await batch.commit();
+          }
+        } catch (uErr) {
+          console.warn("Could not sync directrice user doc:", uErr);
+        }
+      }
       
       if (isLocalSession) {
         setSchools(prev => prev.map(s => s.id === schoolId ? { ...s, ...updated } : s));
@@ -885,6 +911,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           batch.delete(d.ref);
         });
         await batch.commit();
+      }
+
+      if (activeSchoolId === schoolId) {
+        setActiveSchoolId(null);
       }
 
       if (isLocalSession) {
@@ -1721,7 +1751,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Save to Firestore
     try {
       const planRef = doc(db, "plans_config", planId);
-      await updateDoc(planRef, newConfig as any);
+      await setDoc(planRef, newConfig as any, { merge: true });
     } catch (error: any) {
       console.warn("Firestore plansConfig update failed, updating local state only:", error);
     }
@@ -2065,6 +2095,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `waitlist/${waitlistId}`);
     }
+  };
+
+  const promoteStudentFromWaitlist = async (studentId: string, force?: boolean) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return { success: false, message: "Élève introuvable" };
+    const targetClass = classes.find(c => c.id === student.classId);
+    if (!targetClass) return { success: false, message: "Classe introuvable" };
+    if (!force && targetClass.currentCount >= targetClass.maxStudents) {
+      return { success: false, message: "La classe est complète" };
+    }
+    await updateStudent(studentId, { status: "actif" });
+    await updateClass(targetClass.id, { currentCount: targetClass.currentCount + 1 });
+    await handleAudit("PROMOTE_WAITLIST", studentId, `${student.firstName} ${student.lastName}`, {
+      class: `${targetClass.language} ${targetClass.level}`,
+      firstName: student.firstName,
+      lastName: student.lastName
+    });
+    return { success: true, message: "Élève admis avec succès" };
+  };
+
+  const updateStudentStatus = async (studentId: string, status: any) => {
+    await updateStudent(studentId, { status });
   };
 
   const resetDatabase = async () => {
@@ -2451,6 +2503,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateLanguage,
         promoteFromWaitlist,
         removeFromWaitlist,
+        promoteStudentFromWaitlist,
+        updateStudentStatus,
         resetDatabase,
         schoolConfig,
         updateSchoolConfig,

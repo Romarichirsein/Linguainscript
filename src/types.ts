@@ -32,6 +32,7 @@ export interface Campus {
   address: string;
   isActive: boolean;
   createdAt: string;
+  schoolId?: string;
 }
 
 export interface Teacher {
@@ -42,6 +43,7 @@ export interface Teacher {
   languages: string[];
   campusId: string;
   isActive: boolean;
+  schoolId?: string;
 }
 
 export interface Class {
@@ -50,12 +52,15 @@ export interface Class {
   level: "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
   period: "8h" | "12h" | "15h" | "17h";
   teacherId: string;
+  teacherName?: string;
   campusId: string;
   maxStudents: number;
   currentCount: number;
+  totalAmount?: number;
   startDate: string;
   endDate: string;
   isActive: boolean;
+  schoolId?: string;
 }
 
 export interface Student {
@@ -73,6 +78,7 @@ export interface Student {
   status: "actif" | "en_attente" | "expiré" | "terminé" | "archivé";
   enrollmentDate: string;
   expirationDate: string;
+  nextPaymentDate?: string;
   totalAmount: number;
   paidAmount: number;
   balance: number;
@@ -83,6 +89,7 @@ export interface Student {
   tags?: string[];
   createdAt: string;
   updatedAt: string;
+  schoolId?: string;
 }
 
 export interface Payment {
@@ -96,16 +103,19 @@ export interface Payment {
     userName: string;
   };
   note?: string;
+  schoolId?: string;
 }
 
 export interface AuditLog {
   id: string;
-  action: "CREATE_STUDENT" | "ADD_PAYMENT" | "UPDATE_STUDENT" | "CHANGE_CLASS" | "ADD_WAITLIST" | "FROM_WAITLIST" | "RENEWAL" | "ADD_REMINDER" | "DELETE_STUDENT";
+  action: "CREATE_STUDENT" | "ADD_PAYMENT" | "UPDATE_STUDENT" | "CHANGE_CLASS" | "ADD_WAITLIST" | "FROM_WAITLIST" | "PROMOTE_WAITLIST" | "RENEWAL" | "ADD_REMINDER" | "DELETE_STUDENT" | "LOGIN" | "GENERATE_RECEIPT" | "GENERATE_INVOICE" | "GENERATE_CERTIFICATE";
   targetId: string;
   targetName: string;
   userId: string;
   userName: string;
+  userRole?: string;
   campusId: string;
+  campusName?: string;
   timestamp: string;
   details?: {
     field?: string;
@@ -113,6 +123,7 @@ export interface AuditLog {
     after?: string;
     [key: string]: any;
   };
+  schoolId?: string;
 }
 
 export interface WaitlistEntry {
@@ -127,6 +138,7 @@ export interface WaitlistEntry {
     userId: string;
     userName: string;
   };
+  schoolId?: string;
 }
 
 export interface SchoolConfig {
@@ -168,6 +180,7 @@ export interface Reminder {
     userId: string;
     userName: string;
   };
+  schoolId?: string;
 }
 
 export interface PlanConfig {

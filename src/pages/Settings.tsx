@@ -58,6 +58,24 @@ export function Settings() {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Sync form state when schoolConfig updates or loads
+  useEffect(() => {
+    if (schoolConfig) {
+      setName(schoolConfig.name || "");
+      setSlogan(schoolConfig.slogan || "");
+      setThemeColor(schoolConfig.themeColor || "blue");
+      setInterfaceLanguage(schoolConfig.interfaceLanguage || "fr");
+      setCertificateTitle(schoolConfig.certificateTitle || "ATTESTATION DE RÉUSSITE");
+      setCertificateBody(schoolConfig.certificateBody || "Nous soussignés, {ecole_nom}, certifions par la présente que l'élève {nom_etudiant} a suivi avec succès tous ses cours de perfectionnement linguistique au sein de notre établissement.");
+      setCertificateSignatory(schoolConfig.certificateSignatory || "La Direction Académique");
+      setLogoUrl(schoolConfig.logoUrl || "");
+      setSmsEnabled(schoolConfig.smsEnabled ?? false);
+      setSmsGateway(schoolConfig.smsGateway || "default");
+      setSmsTemplate(schoolConfig.smsTemplate || "Rappel Lingua: Le solde de scolarité de {etudiant_nom} (tuteur: {parent_nom}) d'un montant de {montant} FCFA est attendu avant le {date_limite} pour éviter toute interruption. Merci.");
+      setSmsDaysBefore(schoolConfig.smsDaysBefore ?? 5);
+    }
+  }, [schoolConfig]);
+
   // Helper functions to generate dynamic darker color variants for high quality dark environments
   const getThemeHex = (colorName: string): string => {
     switch (colorName) {

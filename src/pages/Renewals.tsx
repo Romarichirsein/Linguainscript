@@ -19,6 +19,7 @@ export const Renewals: React.FC = () => {
   const [renewalAmount, setRenewalAmount] = useState("180000");
   const [renewalPayment, setRenewalPayment] = useState("180000");
   const [renewalMode, setRenewalMode] = useState<"Espèces" | "Mobile Money" | "Virement">("Espèces");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Filter students whose expiration date is within 30 days or already passed
   const threatenedStudents = useMemo(() => {
@@ -47,7 +48,7 @@ export const Renewals: React.FC = () => {
     setRenewalPayment("180000");
   };
 
-  const submitRenewal = (e: React.FormEvent) => {
+  const submitRenewal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetStudent) return;
 
@@ -64,10 +65,16 @@ export const Renewals: React.FC = () => {
     nextExpiration.setFullYear(nextExpiration.getFullYear() + 1);
     const nextExpStr = nextExpiration.toISOString().split("T")[0];
 
-    renewStudent(targetStudent.id, nextExpStr, amount, firstPay, renewalMode);
-    
-    alert(`Dossier Prolongé ! ${targetStudent.firstName} ${targetStudent.lastName} est réinscrit avec succès jusqu'au ${new Date(nextExpStr).toLocaleDateString("fr-FR")}.`);
-    setTargetStudent(null);
+    setIsSubmitting(true);
+    try {
+      await renewStudent(targetStudent.id, nextExpStr, amount, firstPay, renewalMode);
+      alert(`Dossier Prolongé ! ${targetStudent.firstName} ${targetStudent.lastName} est réinscrit avec succès jusqu'au ${new Date(nextExpStr).toLocaleDateString("fr-FR")}.`);
+      setTargetStudent(null);
+    } catch (err: any) {
+      alert(err?.message || "Erreur lors du renouvellement.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -273,9 +280,10 @@ export const Renewals: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-700 shadow shadow-blue-150 cursor-pointer disabled:opacity-50"
                 >
-                  Confirmer la Prolongation
+                  {isSubmitting ? "Prolongation en cours..." : "Confirmer la Prolongation"}
                 </button>
               </div>
             </form>

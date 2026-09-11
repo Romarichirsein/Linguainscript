@@ -149,13 +149,13 @@ export const AuditLog: React.FC = () => {
                         <div className="font-bold text-slate-800">{log.userName}</div>
                         {log.userRole && (
                           <span className={`inline-block text-[9px] font-mono leading-none font-bold uppercase px-1.5 py-0.5 mt-1 rounded border ${
-                            log.userRole === "SUPERADMIN" 
+                            log.userRole.toLowerCase() === "superadmin" 
                               ? "bg-amber-50 text-amber-700 border-amber-200" 
-                              : log.userRole === "DIRECTRICE" 
+                              : log.userRole.toLowerCase() === "directrice" 
                                 ? "bg-blue-50 text-blue-700 border-blue-200" 
                                 : "bg-slate-50 text-slate-650 border-slate-200"
                           }`}>
-                            {log.userRole === "SUPERADMIN" ? "Super Admin" : log.userRole === "DIRECTRICE" ? "Directrice" : "Secrétaire"}
+                            {log.userRole.toLowerCase() === "superadmin" ? "Super Admin" : log.userRole.toLowerCase() === "directrice" ? "Directrice" : "Secrétaire"}
                           </span>
                         )}
                       </td>
@@ -181,7 +181,32 @@ export const AuditLog: React.FC = () => {
                             Promotion de la file d'attente vers inscrit actif de l'élève <b className="text-slate-800">{log.details?.firstName} {log.details?.lastName}</b> en classe <b>{log.details?.class}</b>.
                           </p>
                         )}
-                        {!["CREATE_STUDENT", "ADD_PAYMENT", "RENEWAL", "PROMOTE_WAITLIST"].includes(log.action) && (
+                        {log.action === "FROM_WAITLIST" && (
+                          <p className="text-slate-600">
+                            Admission depuis la liste d'attente de l'élève <b className="text-slate-800">{log.targetName}</b>.
+                          </p>
+                        )}
+                        {log.action === "LOGIN" && (
+                          <p className="text-slate-600">
+                            Connexion réussie de l'utilisateur.
+                          </p>
+                        )}
+                        {log.action === "GENERATE_RECEIPT" && (
+                          <p className="text-slate-600">
+                            Génération d'un reçu de paiement pour <b className="text-slate-800">{log.targetName}</b>.
+                          </p>
+                        )}
+                        {log.action === "GENERATE_INVOICE" && (
+                          <p className="text-slate-600">
+                            Génération d'une facture pour <b className="text-slate-800">{log.targetName}</b>.
+                          </p>
+                        )}
+                        {log.action === "GENERATE_CERTIFICATE" && (
+                          <p className="text-slate-600">
+                            Génération d'une attestation de scolarité pour <b className="text-slate-800">{log.targetName}</b>.
+                          </p>
+                        )}
+                        {!["CREATE_STUDENT", "ADD_PAYMENT", "RENEWAL", "PROMOTE_WAITLIST", "FROM_WAITLIST", "LOGIN", "GENERATE_RECEIPT", "GENERATE_INVOICE", "GENERATE_CERTIFICATE"].includes(log.action) && (
                           <p className="text-slate-500">{log.action}</p>
                         )}
                       </td>

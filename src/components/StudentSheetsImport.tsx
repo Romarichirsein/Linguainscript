@@ -281,7 +281,7 @@ export const StudentSheetsImport: React.FC<StudentSheetsImportProps> = ({
     const processLogs: string[] = [];
 
     const selectedClass = classes.find(c => c.id === targetClassId);
-    const defaultFees = selectedClass ? selectedClass.totalAmount : 30000;
+    const defaultFees = selectedClass?.totalAmount ?? 30000;
 
     for (let rIdx = 0; rIdx < rows.length; rIdx++) {
       if (!selectedRows[rIdx]) continue;
@@ -711,7 +711,7 @@ export const StudentSheetsImport: React.FC<StudentSheetsImportProps> = ({
                   const phone = getMappedValue(row, mapping.phoneIdx, "Non renseigné");
                   
                   const selectedClass = classes.find(c => c.id === targetClassId);
-                  const defaultFees = selectedClass ? selectedClass.totalAmount : 30000;
+                  const defaultFees = selectedClass?.totalAmount ?? 30000;
                   const total = getMappedNumber(row, mapping.totalAmountIdx, defaultFees);
                   const paid = getMappedNumber(row, mapping.paidAmountIdx, 0);
                   const isChecked = !!selectedRows[index];

@@ -330,7 +330,7 @@ const hashRouteToTabMap: Record<string, string> = {
 };
 
 function DashboardContainer() {
-  const { firebaseUser, loading, currentUser, isLocalSession, currentPlan, schoolSlug, currentSchool, logout } = useData();
+  const { firebaseUser, loading, currentUser, isLocalSession, currentPlan, schoolSlug, currentSchool, logout, activeSchoolId, setActiveSchoolId, schools, getSchoolSlug } = useData();
   const isSchoolBlocked = currentSchool?.status === "blocked";
   const isSchoolExpired = currentSchool && currentSchool.subExpiresAt ? new Date(currentSchool.subExpiresAt) < new Date() : false;
   const location = useLocation();
@@ -351,10 +351,16 @@ function DashboardContainer() {
 
   const handleSetCurrentTab = (tab: string) => {
     const routePath = tabToHashRouteMap[tab] || "tableau-de-bord";
-    if (currentUser?.role === "superadmin" && tab === "saas") {
+    if (tab === "saas") {
+      setActiveSchoolId(null);
       navigate("/super-admin");
     } else if (schoolSlug) {
       navigate(`/${schoolSlug}/${routePath}`);
+    } else if (currentUser?.role === "superadmin" && schools.length > 0) {
+      const targetSchool = schools.find(s => s.id === activeSchoolId) || schools[0];
+      const slug = getSchoolSlug(targetSchool.name);
+      setActiveSchoolId(targetSchool.id);
+      navigate(`/${slug}/${routePath}`);
     }
   };
 
@@ -474,6 +480,29 @@ function DashboardContainer() {
 
       {/* Main workspace container */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Top Inspection banner for SuperAdmin if inspecting a school */}
+        {currentUser?.role === "superadmin" && currentSchool && currentTab !== "saas" && (
+          <div className="bg-amber-500 border-b border-amber-600 text-amber-950 px-4 py-2 flex items-center justify-between text-xs font-semibold shrink-0 z-20 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="bg-amber-900 text-amber-100 px-2 py-0.5 rounded font-bold uppercase text-[9px] tracking-wider">
+                Mode Inspection Super Admin
+              </span>
+              <span>
+                Vous inspectez l'espace de <strong>"{currentSchool.name}"</strong> (Forfait {currentSchool.subType.toUpperCase()}).
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setActiveSchoolId(null);
+                navigate("/super-admin");
+              }}
+              className="bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1"
+            >
+              ⬅️ Revenir au Portail SaaS Global
+            </button>
+          </div>
+        )}
+
         {/* Top Header Navbar */}
         <Navbar
           sidebarOpen={sidebarOpen}
