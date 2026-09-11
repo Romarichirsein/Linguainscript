@@ -122,7 +122,7 @@ interface DataContextType {
   deleteClass: (id: string) => Promise<void>;
   updateLanguage: (oldName: string, newName: string) => Promise<void>;
   
-  promoteFromWaitlist: (waitlistId: string, paymentAmount?: number, mode?: "Espèces" | "Mobile Money" | "Virement") => Promise<{ success: boolean; message: string }>;
+  promoteFromWaitlist: (waitlistId: string, paymentAmount?: number, mode?: "Espèces" | "Mobile Money" | "Virement", force?: boolean) => Promise<{ success: boolean; message: string }>;
   removeFromWaitlist: (waitlistId: string) => Promise<void>;
   promoteStudentFromWaitlist: (studentId: string, force?: boolean) => Promise<{ success: boolean; message: string }>;
   updateStudentStatus: (studentId: string, status: any) => Promise<void>;
@@ -855,6 +855,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const schoolRef = doc(db, "schools", schoolId);
       await updateDoc(schoolRef, updated);
 
+      // Synchronize school_config if name was updated
+      if (updated.name) {
+        try {
+          await updateDoc(doc(db, "school_config", schoolId), { name: updated.name });
+        } catch (_) { /* Best effort */ }
+      }
+
       // Synchronize directrice user profile if email or name was updated
       if (updated.directriceEmail || updated.directriceName) {
         try {
@@ -888,8 +895,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteSchool = async (schoolId: string) => {
     checkRoleAccess([UserRole.SUPERADMIN], "Suppression d'un établissement SaaS");
     try {
-      await deleteDoc(doc(db, "schools", schoolId));
-      await deleteDoc(doc(db, "school_config", schoolId));
+      await deleteDoc(doc(db, "schools", schoolId)).catch(() => null);
+      await deleteDoc(doc(db, "school_config", schoolId)).catch(() => null);
 
       const collectionsToCleanup = [
         "users",
@@ -904,13 +911,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ];
 
       for (const colName of collectionsToCleanup) {
-        const q = query(collection(db, colName), where("schoolId", "==", schoolId));
-        const snap = await getDocs(q);
-        const batch = writeBatch(db);
-        snap.forEach(d => {
-          batch.delete(d.ref);
-        });
-        await batch.commit();
+        try {
+          const q = query(collection(db, colName), where("schoolId", "==", schoolId));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const batch = writeBatch(db);
+            snap.forEach(d => {
+              batch.delete(d.ref);
+            });
+            await batch.commit();
+          }
+        } catch (colErr) {
+          console.warn(`Cleanup non-critical error for collection ${colName}:`, colErr);
+        }
       }
 
       if (activeSchoolId === schoolId) {
@@ -937,23 +950,49 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password?: string
   ) => {
     checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Création d'un accès utilisateur");
-    const cleanId = `profile_${Date.now()}`;
+    const cleanEmail = email.trim().toLowerCase();
+    const effectiveSchoolId = schoolId || activeSchoolId;
+    let targetDocId = `profile_${Date.now()}`;
+
+    try {
+      const q = query(collection(db, "users"), where("email", "==", cleanEmail));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        targetDocId = snap.docs[0].id;
+      }
+    } catch (e) {
+      console.warn("Could not check existing user doc:", e);
+    }
+
     const newProfile: UserProfile = {
-      id: cleanId,
-      name,
-      email: email.trim().toLowerCase(),
+      id: targetDocId,
+      name: name.trim(),
+      email: cleanEmail,
       role,
       campusId,
-      schoolId: schoolId || activeSchoolId,
+      schoolId: effectiveSchoolId,
       password: password?.trim() || "lingua123"
     };
 
     try {
-      await setDoc(doc(db, "users", cleanId), newProfile);
-      console.log("Added school staff member successfully:", cleanId);
+      await setDoc(doc(db, "users", targetDocId), newProfile, { merge: true });
+      console.log("Added/updated school staff member successfully:", targetDocId);
+
+      // If user is Directrice, synchronize school document
+      if (role === UserRole.DIRECTRICE && effectiveSchoolId) {
+        try {
+          await updateDoc(doc(db, "schools", effectiveSchoolId), {
+            directriceEmail: cleanEmail,
+            directriceName: name.trim()
+          });
+          setSchools(prev => prev.map(s => s.id === effectiveSchoolId ? { ...s, directriceEmail: cleanEmail, directriceName: name.trim() } : s));
+        } catch (sErr) {
+          console.warn("Could not sync directrice to school:", sErr);
+        }
+      }
     } catch (error) {
       console.error("Failed to write staff member:", error);
-      handleFirestoreError(error, OperationType.WRITE, `users/${cleanId}`);
+      handleFirestoreError(error, OperationType.WRITE, `users/${targetDocId}`);
     }
   };
 
@@ -971,8 +1010,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateStaffUserPassword = async (userId: string, newPassword: string) => {
     checkRoleAccess([UserRole.SUPERADMIN, UserRole.DIRECTRICE], "Modification du mot de passe utilisateur");
     try {
-      await updateDoc(doc(db, "users", userId), { password: newPassword.trim() });
-      console.log("Updated staff member password successfully:", userId);
+      const targetPass = newPassword.trim();
+      const userDocRef = doc(db, "users", userId);
+      const uSnap = await getDoc(userDocRef);
+      let userEmail = "";
+      if (uSnap.exists()) {
+        userEmail = (uSnap.data() as UserProfile).email?.trim().toLowerCase() || "";
+      }
+
+      await updateDoc(userDocRef, { password: targetPass });
+
+      // If this user has an email, ensure ALL user docs for this email have the updated password
+      if (userEmail) {
+        try {
+          const q = query(collection(db, "users"), where("email", "==", userEmail));
+          const allMatchingSnap = await getDocs(q);
+          const batch = writeBatch(db);
+          allMatchingSnap.forEach(d => {
+            if (d.id !== userId) {
+              batch.update(d.ref, { password: targetPass });
+            }
+          });
+          await batch.commit();
+        } catch (syncErr) {
+          console.warn("Failed to synchronize password across matching user docs:", syncErr);
+        }
+      }
+      console.log("Updated staff member password successfully across docs:", userId);
     } catch (error) {
       console.error("Failed to update staff member password:", error);
       handleFirestoreError(error, OperationType.WRITE, `users/${userId}`);
@@ -1002,6 +1066,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 1. Resolve user profile and credentials first (for both demo users and normal Firestore users)
       let resolvedProfile: UserProfile | null = null;
       let storedPassword = "";
+      let snapDocs: any[] = [];
 
       if (cleanEmail === "superadmin@linguainscript.com" && password === "admin123") {
         storedPassword = "admin123";
@@ -1022,34 +1087,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (snap.empty) {
           throw new Error("Aucun compte trouvé avec cette adresse email.");
         }
+        snapDocs = snap.docs;
 
-        // If multiple user docs match, prefer the one with a password set
-        if (snap.docs.length > 1) {
-          const docWithPassword = snap.docs.find(d => d.data().password);
-          const userDoc = docWithPassword || snap.docs[0];
-          resolvedProfile = userDoc.data() as UserProfile;
-        } else {
-          resolvedProfile = snap.docs[0].data() as UserProfile;
-        }
+        // If multiple user docs match, prefer the one whose password matches the input
+        const matchingPassDoc = snapDocs.find(d => d.data().password === password);
+        const docWithPassword = snapDocs.find(d => d.data().password);
+        const userDoc = matchingPassDoc || docWithPassword || snapDocs[0];
+        resolvedProfile = userDoc.data() as UserProfile;
         storedPassword = resolvedProfile.password || "lingua123";
       }
 
       // 2. If the password is correct, authenticate the user with Firebase Auth
       if (password !== storedPassword) {
         throw new Error("Mot de passe incorrect.");
-      }
-
-      if (resolvedProfile && resolvedProfile.schoolId) {
-        const schoolDoc = await getDoc(doc(db, "schools", resolvedProfile.schoolId));
-        if (schoolDoc.exists()) {
-          const schoolData = schoolDoc.data() as School;
-          if (schoolData.status === "blocked") {
-            throw new Error("Votre établissement a été suspendu par le super administrateur. Veuillez régulariser votre situation.");
-          }
-          if (new Date(schoolData.subExpiresAt) < new Date()) {
-            throw new Error("L'abonnement de votre établissement a expiré. Accès bloqué. Veuillez contacter le super administrateur.");
-          }
-        }
       }
 
       const deterministicPassword = `${cleanEmail}_lingua_auth_2026`;
@@ -1102,6 +1152,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const writeTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore write timeout")), 15000));
           await Promise.race([setDoc(doc(db, "users", firebaseUid), updatedProfile), writeTimeout]);
+
+          // Clean up duplicate legacy placeholder docs for this email
+          if (snapDocs.length > 0) {
+            for (const d of snapDocs) {
+              if (d.id !== firebaseUid) {
+                try {
+                  await deleteDoc(d.ref);
+                } catch (delErr) {
+                  console.warn("Could not remove stale placeholder user doc:", d.id, delErr);
+                }
+              }
+            }
+          }
         } catch (dbErr) {
           console.error("Failed writing demo session profile to Firestore:", dbErr);
         }
@@ -1934,7 +1997,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const promoteFromWaitlist = async (waitlistId: string, paymentAmount: number, mode: "Espèces" | "Mobile Money" | "Virement") => {
+  const promoteFromWaitlist = async (waitlistId: string, paymentAmount: number = 0, mode: "Espèces" | "Mobile Money" | "Virement" = "Espèces", force: boolean = false) => {
     if (!currentUser) return { success: false, message: "Non authentifié" };
     
     const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
@@ -1954,7 +2017,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const selectedClass = classes.find(c => c.id === entry.classId);
     if (!selectedClass) return { success: false, message: "Classe introuvable" };
 
-    if (selectedClass.currentCount >= selectedClass.maxStudents) {
+    if (!force && selectedClass.currentCount >= selectedClass.maxStudents) {
       return { success: false, message: "La classe est toujours pleine." };
     }
 
@@ -2183,6 +2246,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSchoolConfig(prev => prev ? { ...prev, ...mergedConfig } : (mergedConfig as any));
       }
       await setDoc(configRef, mergedConfig, { merge: true });
+      if (newConfig.name) {
+        try {
+          await updateDoc(doc(db, "schools", targetSchoolId), { name: newConfig.name });
+          setSchools(prev => prev.map(s => s.id === targetSchoolId ? { ...s, name: newConfig.name! } : s));
+        } catch (_) { /* Best effort */ }
+      }
       await handleAudit("UPDATE_STUDENT", targetSchoolId, mergedConfig.name, {
         info: "Personnalisation du profil de l'école (Paramètres SMS inclus)"
       });

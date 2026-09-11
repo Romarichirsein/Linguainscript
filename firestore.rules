@@ -125,10 +125,16 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
+    // 0. Connection test ping
+    match /test/{id} {
+      allow read, write: if true;
+    }
+
     // 7. Audit Logs collection
     match /audit_logs/{logId} {
       allow read, create: if true;
-      allow update, delete: if false; // Audit logs remain historically immutable
+      allow update: if false;
+      allow delete: if true; // Allowed for school cleanup purge
     }
     
     // 8. Waitlist collection
