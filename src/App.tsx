@@ -11,14 +11,13 @@ import { Dashboard } from "./pages/Dashboard";
 import { StudentList } from "./pages/StudentList";
 import { StudentDetails } from "./pages/StudentDetails";
 import { NewStudent } from "./pages/NewStudent";
-import { Waitlist } from "./pages/Waitlist";
 import { Classes } from "./pages/Classes";
 import { Reports } from "./pages/Reports";
 import { Renewals } from "./pages/Renewals";
 import { AuditLog } from "./pages/AuditLog";
 import { Settings } from "./pages/Settings";
 import { SaaSManagement } from "./pages/SaaSManagement";
-import { LogIn, Sparkles, BookOpen, GraduationCap, RefreshCw, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { RefreshCw, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function LoginScreen() {
@@ -293,7 +292,7 @@ function LoginScreen() {
 
             {/* Bottom humble metadata footer */}
             <footer className="mt-5 text-center text-[9px] text-indigo-400/50 font-mono tracking-widest max-w-sm leading-normal">
-              SECURE LOG ACCESS ENGINE v4.2 · CORE RBAC COMPLIANCY VERIFIED
+              © {new Date().getFullYear()} LinguaInscript · Espace de Gestion Sécurisé
             </footer>
           </motion.div>
         )}
@@ -307,7 +306,6 @@ const tabToHashRouteMap: Record<string, string> = {
   dashboard: "tableau-de-bord",
   newStudent: "inscription",
   students: "eleves",
-  waitlist: "liste-d-attente",
   reports: "rapports",
   renewals: "renouvellements",
   classes: "classes",
@@ -320,7 +318,6 @@ const hashRouteToTabMap: Record<string, string> = {
   "tableau-de-bord": "dashboard",
   "inscription": "newStudent",
   "eleves": "students",
-  "liste-d-attente": "waitlist",
   "rapports": "reports",
   "renouvellements": "renewals",
   "classes": "classes",
@@ -422,12 +419,6 @@ function DashboardContainer() {
             setSelectedStudentId={handleSetSelectedStudentId}
           />
         );
-
-      case "waitlist":
-        if (currentPlan && !currentPlan.canManageWaitlist) {
-          return <Dashboard setCurrentTab={handleSetCurrentTab} setSelectedStudentId={handleSetSelectedStudentId} />;
-        }
-        return <Waitlist />;
 
       case "reports":
         if (currentPlan && !currentPlan.canViewReports) {

@@ -504,7 +504,7 @@ export const StudentList: React.FC<StudentListProps> = ({
             >
               <option value="">Tous les Statuts (Exclut Archives)</option>
               <option value="actif">Inscrit Actif</option>
-              <option value="en_attente">Liste d'Attente</option>
+              <option value="en_attente">Pré-inscription en Attente</option>
               <option value="expiré">Inscription Expirée</option>
               <option value="terminé">Scolarité Terminée</option>
               <option value="archivé">Dossier Archivé</option>

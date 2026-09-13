@@ -53,7 +53,6 @@ export function SaaSManagement() {
     rawClasses,
     rawPayments,
     rawAuditLogs,
-    rawWaitlist,
     rawReminders,
     plansConfig,
     updatePlanConfig,
@@ -89,7 +88,6 @@ export function SaaSManagement() {
         students: rawStudents,
         payments: rawPayments,
         auditLogs: rawAuditLogs,
-        waitlist: rawWaitlist,
         reminders: rawReminders
       };
 
@@ -1368,7 +1366,6 @@ export function SaaSManagement() {
                 { key: "canAdvancedSearch", label: "Recherche avancée & filtres" },
                 { key: "canViewHistory", label: "Consultation de l'historique" },
                 { key: "canViewReports", label: "Rapports financiers & statistiques" },
-                { key: "canManageWaitlist", label: "Gestion de la file d'attente (Waitlist)" },
                 { key: "canManageRenewals", label: "Gestion des renouvellements d'inscriptions" },
                 { key: "canManageClasses", label: "Gestion des classes & enseignants" },
               ] as const;

@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   UserPlus,
   Users,
-  Hourglass,
   TrendingUp,
   History,
   AlertTriangle,
@@ -39,10 +38,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (currentPlan && !isSuperAdmin) {
       if (tabId === "newStudent" && !currentPlan.canCreateStudents) {
         alert(`⚠️ Fonctionnalité Bloquée : La création d'élèves n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer à un pack supérieur.`);
-        return;
-      }
-      if (tabId === "waitlist" && !currentPlan.canManageWaitlist) {
-        alert(`⚠️ Fonctionnalité Bloquée : La file d'attente n'est pas disponible avec le pack ${currentPlan.name}. Veuillez passer à un pack supérieur.`);
         return;
       }
       if (tabId === "reports" && !currentPlan.canViewReports) {
@@ -83,8 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems = [
     { id: "dashboard", label: t("dashboard"), icon: LayoutDashboard },
     { id: "newStudent", label: t("newStudent"), icon: UserPlus },
-    { id: "students", label: t("students"), icon: Users },
-    { id: "waitlist", label: t("waitlist"), icon: Hourglass }
+    { id: "students", label: t("students"), icon: Users }
   ];
 
   // Admin exclusive tabs
@@ -179,8 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   const Icon = item.icon;
                   const isActive = currentTab === item.id;
                   const isLocked = !isSuperAdmin && currentPlan && (
-                    (item.id === "newStudent" && !currentPlan.canCreateStudents) ||
-                    (item.id === "waitlist" && !currentPlan.canManageWaitlist)
+                    item.id === "newStudent" && !currentPlan.canCreateStudents
                   );
                   return (
                     <button

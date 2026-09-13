@@ -164,13 +164,17 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
       totalAmount: costNum
     };
 
+    if (isClassFull) {
+      alert("Cette classe est complète. Veuillez sélectionner une autre classe.");
+      return;
+    }
+
     try {
       const response = await addStudent(
         studentPayload,
         paidNum,
         paidNum > 0 ? payMode : null,
-        payNote || "Paiement d'inscription scolaire",
-        isClassFull // If class is full, add to waitlist instead if user confirmed
+        payNote || "Paiement d'inscription scolaire"
       );
 
       if (response.success) {
@@ -480,14 +484,14 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
                     )}
                   </div>
 
-                  {/* CAPACITY ALARM & AUTO-WAITLIST BASCE MODULE */}
+                  {/* CAPACITY ALARM */}
                   {isClassFull && (
-                    <div className="sm:col-span-2 mt-2 bg-amber-50 rounded-lg p-3.5 border border-amber-200 flex gap-2.5 items-start">
-                      <AlertCircle className="h-4.5 w-4.5 text-amber-600 mt-0.5 shrink-0" />
+                    <div className="sm:col-span-2 mt-2 bg-red-50 rounded-lg p-3.5 border border-red-200 flex gap-2.5 items-start">
+                      <AlertCircle className="h-4.5 w-4.5 text-red-600 mt-0.5 shrink-0" />
                       <div>
-                        <h5 className="font-bold text-amber-700 text-xs">Mise en liste d'attente automatique</h5>
-                        <p className="text-[11px] text-amber-600 mt-1 leading-relaxed">
-                          La classe choisie est au maximum de sa capacité. Si vous validez cette inscription, l'élève sera automatiquement dirigé et inscrit dans la <b>Liste d'Attente</b> (Position active) pour être admis plus tard si une place se libère.
+                        <h5 className="font-bold text-red-700 text-xs">Classe complète</h5>
+                        <p className="text-[11px] text-red-600 mt-1 leading-relaxed">
+                          La classe choisie a atteint sa capacité maximale ({resolvedClass.maxStudents}/{resolvedClass.maxStudents} élèves). Veuillez sélectionner une autre classe pour inscrire l'élève.
                         </p>
                       </div>
                     </div>
@@ -603,35 +607,32 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
                 />
               </div>
 
-              {/* Initial down payment (Pre-emped payment visualization) */}
+              {/* Initial down payment */}
               <div className="flex flex-col gap-1.5">
                 <label className="font-semibold text-slate-650">Versement initial ce jour (FCFA) *</label>
                 <input
                   type="number"
                   required
-                  disabled={isClassFull} // If class full, waitlist doesn't require immediate payment
-                  placeholder={isClassFull ? "0 (En file d'attente)" : "Ex: 80000"}
-                  value={isClassFull ? "0" : paidAmount}
+                  placeholder="Ex: 80000"
+                  value={paidAmount}
                   onChange={e => setPaidAmount(e.target.value)}
-                  className="rounded-xl border border-slate-200 p-2.5 text-slate-850 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-850"
                 />
               </div>
 
               {/* Mode */}
-              {!isClassFull && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-semibold text-slate-650">Mode de paiement initial *</label>
-                  <select
-                    value={payMode}
-                    onChange={e => setPayMode(e.target.value as any)}
-                    className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
-                  >
-                    <option value="Espèces">Espèces</option>
-                    <option value="Mobile Money">Mobile Money (OM / MoMo)</option>
-                    <option value="Virement">Virement Bancaire</option>
-                  </select>
-                </div>
-              )}
+              <div className="flex flex-col gap-1.5">
+                <label className="font-semibold text-slate-650">Mode de paiement initial *</label>
+                <select
+                  value={payMode}
+                  onChange={e => setPayMode(e.target.value as any)}
+                  className="rounded-xl border border-slate-200 p-2.5 bg-white text-slate-850"
+                >
+                  <option value="Espèces">Espèces</option>
+                  <option value="Mobile Money">Mobile Money (OM / MoMo)</option>
+                  <option value="Virement">Virement Bancaire</option>
+                </select>
+              </div>
 
               {/* Optional comments */}
               <div className="flex flex-col gap-1.5 sm:col-span-2">
@@ -653,7 +654,7 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
                   </div>
                   <div className="text-right">
                     <span className="text-lg font-bold text-red-650">
-                      {(isClassFull ? 0 : Math.max(0, parseFloat(totalCost || "0") - parseFloat(paidAmount || "0"))).toLocaleString()}{" "}
+                      {Math.max(0, parseFloat(totalCost || "0") - parseFloat(paidAmount || "0")).toLocaleString()}{" "}
                       FCFA
                     </span>
                     <p className="text-[10px] text-slate-400">Solde restant</p>
@@ -676,9 +677,10 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-5 py-2.5 font-bold text-xs text-white hover:bg-green-700 shadow-md shadow-green-200 cursor-pointer"
+                disabled={isClassFull}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-5 py-2.5 font-bold text-xs text-white hover:bg-green-700 shadow-md shadow-green-200 cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
-                {isClassFull ? "Enregistrer en File d'Attente" : "Inscrire & Enregistrer Paiement"}
+                {isClassFull ? "Classe Complète" : "Inscrire & Enregistrer Paiement"}
               </button>
             </div>
           </form>
@@ -701,8 +703,7 @@ export const NewStudent: React.FC<NewStudentProps> = ({ setCurrentTab, setSelect
             </div>
 
             <div className="flex flex-col items-center gap-2 max-w-sm mx-auto pt-4">
-              {/* Only show print receipt if the student is active, not waitlisted */}
-              {justCreatedId && !isClassFull && (
+              {justCreatedId && (
                 <button
                   type="button"
                   onClick={printFormReceipt}

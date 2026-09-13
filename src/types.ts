@@ -126,21 +126,6 @@ export interface AuditLog {
   schoolId?: string;
 }
 
-export interface WaitlistEntry {
-  id: string;
-  classId: string;
-  studentId: string;
-  studentName: string;
-  studentPhone: string;
-  addedAt: string;
-  position: number;
-  addedBy: {
-    userId: string;
-    userName: string;
-  };
-  schoolId?: string;
-}
-
 export interface SchoolConfig {
   id: string;
   name: string;
@@ -195,7 +180,6 @@ export interface PlanConfig {
   canAdvancedSearch: boolean;
   canViewHistory: boolean;
   canViewReports: boolean;
-  canManageWaitlist: boolean;
   canManageRenewals: boolean;
   canManageClasses: boolean;
 }

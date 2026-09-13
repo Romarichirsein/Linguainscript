@@ -105,7 +105,6 @@ export const AuditLog: React.FC = () => {
             <option value="CREATE_STUDENT">Création Inscriptions</option>
             <option value="ADD_PAYMENT">Encaissements de scolarité</option>
             <option value="RENEWAL">Renouvellements annuels</option>
-            <option value="PROMOTE_WAITLIST">Promotions Liste d'Attente</option>
           </select>
         </div>
       </div>

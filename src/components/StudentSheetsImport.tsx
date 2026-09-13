@@ -56,12 +56,10 @@ export const StudentSheetsImport: React.FC<StudentSheetsImportProps> = ({
   const [importResults, setImportResults] = useState<{
     successCount: number;
     failedCount: number;
-    waitlistedCount: number;
     logs: string[];
   }>({
     successCount: 0,
     failedCount: 0,
-    waitlistedCount: 0,
     logs: []
   });
 
@@ -277,7 +275,6 @@ export const StudentSheetsImport: React.FC<StudentSheetsImportProps> = ({
 
     let successes = 0;
     let failures = 0;
-    let waitlisted = 0;
     const processLogs: string[] = [];
 
     const selectedClass = classes.find(c => c.id === targetClassId);
@@ -324,18 +321,12 @@ export const StudentSheetsImport: React.FC<StudentSheetsImportProps> = ({
           payload,
           paidAmount,
           paidAmount > 0 ? "Espèces" : null,
-          "Importé par Google Sheets",
-          true // Always set auto to waitlist if class hits limits
+          "Importé par Google Sheets"
         );
 
         if (result.success) {
-          if (result.waitlistId) {
-            waitlisted++;
-            processLogs.push(`⏳ ${firstName} ${lastName} a été placé en liste d'attente (Classe saturée).`);
-          } else {
-            successes++;
-            processLogs.push(`✅ ${firstName} ${lastName} importé avec succès (${paidAmount.toLocaleString()} FCFA payés).`);
-          }
+          successes++;
+          processLogs.push(`✅ ${firstName} ${lastName} importé avec succès (${paidAmount.toLocaleString()} FCFA payés).`);
         } else {
           failures++;
           processLogs.push(`❌ ${firstName} ${lastName} : ${result.message || "Erreur indéterminée"}`);
@@ -349,7 +340,6 @@ export const StudentSheetsImport: React.FC<StudentSheetsImportProps> = ({
     setImportResults({
       successCount: successes,
       failedCount: failures,
-      waitlistedCount: waitlisted,
       logs: processLogs
     });
 
@@ -763,15 +753,10 @@ export const StudentSheetsImport: React.FC<StudentSheetsImportProps> = ({
       {step === 4 && (
         <div className="space-y-4 text-xs">
           
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center">
               <span className="block text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Succès Clôturés</span>
               <p className="text-xl font-extrabold text-emerald-700 mt-1">{importResults.successCount}</p>
-            </div>
-            
-            <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-center">
-              <span className="block text-[10px] text-amber-500 font-bold uppercase tracking-wider">Mises en attente</span>
-              <p className="text-xl font-extrabold text-amber-700 mt-1">{importResults.waitlistedCount}</p>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl text-center">

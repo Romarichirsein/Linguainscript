@@ -106,14 +106,6 @@ export const Reports: React.FC = () => {
     }).length;
   }, [auditLogs, dateBoundaries, filterCampusId]);
 
-  const waitlistInscriptionsCount = useMemo(() => {
-    return auditLogs.filter(log => {
-      if (log.action !== "ADD_WAITLIST") return false;
-      if (filterCampusId && log.campusId !== filterCampusId) return false;
-      const logDate = new Date(log.timestamp);
-      return logDate >= dateBoundaries.start && logDate <= dateBoundaries.end;
-    }).length;
-  }, [auditLogs, dateBoundaries, filterCampusId]);
 
   const totalCollected = periodPayments.reduce((acc, curr) => acc + curr.amount, 0);
   const outstandingDebt = periodStudents.reduce((acc, curr) => acc + curr.balance, 0);
@@ -319,18 +311,17 @@ export const Reports: React.FC = () => {
       doc.setTextColor(51, 65, 85);
       doc.text(`• Nouveaux élèves inscrits au cours de la période : ${newInscriptionsCount} étudiants`, 15, 68);
       doc.text(`• Prolongations de scolarité validées (Renouvellements) : ${renewalsCount} prolongements`, 15, 74);
-      doc.text(`• Inscriptions en liste d'attente enregistrées : ${waitlistInscriptionsCount} candidats`, 15, 80);
-      doc.text(`• Soldes restants en attente de recouvrement scolaire : ${outstandingDebt.toLocaleString()} FCFA`, 15, 86);
+      doc.text(`• Soldes restants en attente de recouvrement scolaire : ${outstandingDebt.toLocaleString()} FCFA`, 15, 80);
 
       // Encaissements Highlight Box
       doc.setFillColor(239, 246, 255);
       doc.setDrawColor(191, 219, 254);
-      doc.rect(12, 92, 186, 12, "FD");
+      doc.rect(12, 88, 186, 12, "FD");
       
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(10.5);
       doc.setTextColor(30, 64, 175);
-      doc.text(`TOTAL DES RECETTES COLLECTÉES :   ${totalCollected.toLocaleString()} FCFA`, 18, 100);
+      doc.text(`TOTAL DES RECETTES COLLECTÉES :   ${totalCollected.toLocaleString()} FCFA`, 18, 96);
 
       // Section 2 - Inscription Charts/Graphiques
       doc.setFontSize(12);
@@ -452,7 +443,6 @@ export const Reports: React.FC = () => {
       rows.push(`${escapeCSV("Indicateur")},${escapeCSV("Valeur")},${escapeCSV("Unité / Détail")}`);
       rows.push(`${escapeCSV("Nouvelles Inscriptions")},${newInscriptionsCount},${escapeCSV("élèves")}`);
       rows.push(`${escapeCSV("Renouvellements")},${renewalsCount},${escapeCSV("prolongations")}`);
-      rows.push(`${escapeCSV("Candidats ajoutés en liste d'attente")},${waitlistInscriptionsCount},${escapeCSV("élèves")}`);
       rows.push(`${escapeCSV("Total des encaissements")},${totalCollected},${escapeCSV("FCFA")}`);
       rows.push(`${escapeCSV("Soldes restant à recouvrer")},${outstandingDebt},${escapeCSV("FCFA")}`);
       rows.push(""); // empty row

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useData } from "../../context/DataContext";
 import { UserRole } from "../../types";
-import { Bell, Menu, Shield, RefreshCw, UserCheck, AlertCircle, Search, X, Sun, Moon, Maximize2, Minimize2 } from "lucide-react";
+import { Bell, Menu, Shield, RefreshCw, AlertCircle, Search, X, Sun, Moon, Maximize2, Minimize2 } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 
 interface NavbarProps {
@@ -27,7 +27,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     switchUser, 
     students, 
     classes, 
-    waitlist, 
     resetDatabase,
     systemNotifications,
     updateSystemNotification,
@@ -71,25 +70,22 @@ export const Navbar: React.FC<NavbarProps> = ({
     return daysLeft >= 0 && daysLeft <= 15;
   });
 
-  // 2. Classes with active waitlist entries
-  const waitlistClasses = classes.filter(c => waitlist.some(w => w.classId === c.id));
-
-  // 3. Students with outstanding unpaid balances
+  // 2. Students with outstanding unpaid balances
   const debtStudents = students.filter(s => s.balance > 0 && s.status === "actif");
 
-  // 4. System notifications / warnings for school users
+  // 3. System notifications / warnings for school users
   const schoolSystemWarnings = (systemNotifications || []).filter(
     n => n.type === "subscription_warning" && n.schoolId === currentUser?.schoolId && !n.read
   );
 
-  // 5. Renewal requests for SuperAdmin
+  // 4. Renewal requests for SuperAdmin
   const pendingRenewalRequests = (systemNotifications || []).filter(
     n => n.type === "renewal_request" && n.status === "pending"
   );
 
   const totalAlerts = currentUser?.role === UserRole.SUPERADMIN
     ? pendingRenewalRequests.length
-    : expiringStudents.length + waitlistClasses.length + debtStudents.length + schoolSystemWarnings.length;
+    : expiringStudents.length + debtStudents.length + schoolSystemWarnings.length;
 
   const handleAlertClick = (tabId: string, studentId?: string) => {
     setCurrentTab(tabId);
@@ -401,23 +397,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Solde restant à recouvrer</p>
                                 <p className="text-[11px] text-slate-550 dark:text-slate-400">
                                   <b>{student.firstName} {student.lastName}</b> doit encore <b>{student.balance.toLocaleString()} FCFA</b>.
-                                </p>
-                              </div>
-                            </button>
-                          ))}
-
-                          {/* Waitlist warnings */}
-                          {waitlistClasses.map(cls => (
-                            <button
-                              key={cls.id}
-                              onClick={() => handleAlertClick("waitlist")}
-                              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex gap-2.5 items-start"
-                            >
-                              <UserCheck className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                              <div>
-                                <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Classe complète & File</p>
-                                <p className="text-[11px] text-slate-550 dark:text-slate-400">
-                                  La classe <b>{cls.language} {cls.level}</b> est pleine avec des élèves en attente.
                                 </p>
                               </div>
                             </button>

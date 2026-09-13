@@ -63,7 +63,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
     students, 
     payments, 
     auditLogs, 
-    waitlist, 
     addStudent, 
     schoolConfig, 
     updateStudent,
@@ -211,8 +210,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
       return;
     }
 
+    if (isQuickAddClassFull) {
+      setModalError("Cette classe est déjà complète. Impossible d'inscrire un nouvel élève.");
+      return;
+    }
+
     const costNum = parseFloat(totalCost);
-    const paidNum = parseFloat(isQuickAddClassFull ? "0" : paidAmount);
+    const paidNum = parseFloat(paidAmount);
 
     if (isNaN(costNum) || isNaN(paidNum)) {
       setModalError("Le prix ou le montant versé est invalide.");
@@ -246,8 +250,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
         studentPayload,
         paidNum,
         paidNum > 0 ? payMode : null,
-        payNote || "Acompte d'inscription rapide (Dashboard)",
-        isQuickAddClassFull
+        payNote || "Acompte d'inscription rapide (Dashboard)"
       );
 
       if (result.success) {
@@ -283,16 +286,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
   const viewAuditLogs = isDirectrice
     ? (selectedCampusId === "all" ? auditLogs : auditLogs.filter(l => l.campusId === selectedCampusId))
     : auditLogs.filter(l => l.campusId === userCampusId);
-
-  const viewWaitlist = isDirectrice
-    ? (selectedCampusId === "all" ? waitlist : waitlist.filter(w => {
-        const parentClass = classes.find(c => c.id === w.classId);
-        return parentClass && parentClass.campusId === selectedCampusId;
-      }))
-    : waitlist.filter(w => {
-        const parentClass = classes.find(c => c.id === w.classId);
-        return parentClass && parentClass.campusId === userCampusId;
-      });
 
   // Contextual Month-End Alert synthesizers
   const monthlyAlerts = useMemo(() => {
@@ -968,7 +961,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
           <div>
             <div className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Alertes Actions</div>
             <div className="text-2xl font-black mt-1 text-slate-900">
-              {expiringCount + fullClassesCount + viewWaitlist.length}
+              {expiringCount + fullClassesCount}
             </div>
           </div>
           <div className="text-[10px] text-blue-500 mt-2 font-bold">
@@ -1443,12 +1436,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                     } else if (log.action === "RENEWAL") {
                       emoji = "🔄";
                       message = `a renouvelé l'inscription de ${log.targetName} jusqu'au ${log.details?.extendedUntil}`;
-                    } else if (log.action === "ADD_WAITLIST") {
-                      emoji = "⏳";
-                      message = `a placé ${log.targetName} en liste d'attente (position ${log.details?.position})`;
-                    } else if (log.action === "FROM_WAITLIST") {
-                      emoji = "✅";
-                      message = `a validé l'inscription de ${log.targetName} depuis la liste d'attente`;
                     } else {
                       emoji = "✏️";
                       message = `a modifié la fiche de ${log.targetName} : ${log.details?.field || "mise à jour"}`;
@@ -1578,16 +1565,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                       ? Math.round((viewClasses.reduce((acc, c) => acc + c.currentCount, 0) / viewClasses.reduce((acc, c) => acc + c.maxStudents, 0)) * 100) 
                       : 0}%
                   </span>
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 font-bold text-[10px]">
-                      A
-                    </span>
-                    <span className="font-semibold text-slate-700 font-bold">File d'Attente Active</span>
-                  </div>
-                  <span className="font-extrabold text-amber-600 text-sm">{viewWaitlist.length} élèves</span>
                 </div>
               </div>
             </div>
@@ -2053,8 +2030,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                         </div>
                         <div>
                           {isQuickAddClassFull ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 rounded px-2.5 py-1 text-amber-600 border border-amber-200 leading-none shadow-sm">
-                              <AlertCircle className="h-3 w-3" /> Auto-Waitlist
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-red-50 rounded px-2.5 py-1 text-red-600 border border-red-200 leading-none shadow-sm">
+                              <AlertCircle className="h-3 w-3" /> Classe complète
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-green-50 rounded px-2.5 py-1 text-green-600 border border-green-200 leading-none shadow-sm">
@@ -2087,19 +2064,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                         <input
                           type="number"
                           required
-                          disabled={isQuickAddClassFull}
-                          value={isQuickAddClassFull ? "0" : paidAmount}
+                          value={paidAmount}
                           onChange={e => setPaidAmount(e.target.value)}
-                          className="rounded-lg border border-slate-200 p-2 text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-50"
+                          className="rounded-lg border border-slate-200 p-2 text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
                         />
                       </div>
                       <div className="flex flex-col gap-1">
                         <label className="font-semibold text-slate-655">Mode de paiement *</label>
                         <select
-                          disabled={isQuickAddClassFull}
                           value={payMode}
                           onChange={e => setPayMode(e.target.value as any)}
-                          className="rounded-lg border border-slate-200 p-2 bg-white text-slate-800 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-50"
+                          className="rounded-lg border border-slate-200 p-2 bg-white text-slate-800 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
                         >
                           <option value="Espèces">Espèces</option>
                           <option value="Mobile Money">Mobile Money</option>
@@ -2134,10 +2109,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab, setSelected
                 {!modalSuccess && (
                   <button
                     type="submit"
-                    disabled={submitting}
-                    className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-blue-200 transition-all cursor-pointer flex items-center gap-1.5 disabled:bg-blue-400"
+                    disabled={submitting || isQuickAddClassFull}
+                    className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-blue-200 transition-all cursor-pointer flex items-center gap-1.5 disabled:bg-slate-300 disabled:cursor-not-allowed"
                   >
-                    {submitting ? "Enregistrement..." : isQuickAddClassFull ? "Mettre en Liste d'Attente" : "Inscrire & Enregistrer"}
+                    {submitting ? "Enregistrement..." : isQuickAddClassFull ? "Classe Complète" : "Inscrire & Enregistrer"}
                   </button>
                 )}
               </div>

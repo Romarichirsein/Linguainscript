@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from "react";
-import { Campus, Teacher, Class, Student, Payment, AuditLog, WaitlistEntry, UserProfile, UserRole, SchoolConfig, Reminder, School, PlanConfig, SystemNotification } from "../types";
+import { Campus, Teacher, Class, Student, Payment, AuditLog, UserProfile, UserRole, SchoolConfig, Reminder, School, PlanConfig, SystemNotification } from "../types";
 import { db, auth } from "../lib/firebase";
 import { handleFirestoreError, OperationType } from "../lib/firebaseErrors";
 import {
@@ -54,7 +54,6 @@ interface DataContextType {
   students: Student[];
   payments: Payment[];
   auditLogs: AuditLog[];
-  waitlist: WaitlistEntry[];
   
   // Raw database tables for SaaS consolidated backups
   rawStudents: Student[];
@@ -63,7 +62,6 @@ interface DataContextType {
   rawClasses: Class[];
   rawPayments: Payment[];
   rawAuditLogs: AuditLog[];
-  rawWaitlist: WaitlistEntry[];
   rawReminders: Reminder[];
 
   // SaaS Multi-tenant & Subscription management
@@ -92,9 +90,8 @@ interface DataContextType {
     studentData: OmitStudentFields,
     paymentAmount: number,
     paymentMode: "Espèces" | "Mobile Money" | "Virement" | null,
-    paymentNote?: string,
-    addToWaitlistIfFull?: boolean
-  ) => Promise<{ success: boolean; studentId?: string; waitlistId?: string; message: string }>;
+    paymentNote?: string
+  ) => Promise<{ success: boolean; studentId?: string; message: string }>;
 
   updateStudent: (id: string, updated: StudentUpdate) => Promise<void>;
   deleteStudent: (studentId: string) => Promise<void>;
@@ -112,9 +109,6 @@ interface DataContextType {
   deleteClass: (id: string) => Promise<void>;
   updateLanguage: (oldName: string, newName: string) => Promise<void>;
   
-  promoteFromWaitlist: (waitlistId: string, paymentAmount?: number, mode?: "Espèces" | "Mobile Money" | "Virement", force?: boolean) => Promise<{ success: boolean; message: string }>;
-  removeFromWaitlist: (waitlistId: string) => Promise<void>;
-  promoteStudentFromWaitlist: (studentId: string, force?: boolean) => Promise<{ success: boolean; message: string }>;
   updateStudentStatus: (studentId: string, status: any) => Promise<void>;
   resetDatabase: () => Promise<void>;
   schoolConfig: SchoolConfig | null;
@@ -165,7 +159,6 @@ const defaultPlansConfig: PlanConfig[] = [
     canAdvancedSearch: false,
     canViewHistory: false,
     canViewReports: false,
-    canManageWaitlist: false,
     canManageRenewals: false,
     canManageClasses: false,
   },
@@ -181,7 +174,6 @@ const defaultPlansConfig: PlanConfig[] = [
     canAdvancedSearch: true,
     canViewHistory: false,
     canViewReports: false,
-    canManageWaitlist: true,
     canManageRenewals: false,
     canManageClasses: true,
   },
@@ -197,7 +189,6 @@ const defaultPlansConfig: PlanConfig[] = [
     canAdvancedSearch: true,
     canViewHistory: true,
     canViewReports: true,
-    canManageWaitlist: true,
     canManageRenewals: true,
     canManageClasses: true,
   }
@@ -298,7 +289,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [rawStudents, setRawStudents] = useState<Student[]>([]);
   const [rawPayments, setRawPayments] = useState<Payment[]>([]);
   const [rawAuditLogs, setRawAuditLogs] = useState<AuditLog[]>([]);
-  const [rawWaitlist, setRawWaitlist] = useState<WaitlistEntry[]>([]);
   const [rawReminders, setRawReminders] = useState<Reminder[]>([]);
   
   const [schoolConfig, setSchoolConfig] = useState<SchoolConfig | null>(null);
@@ -310,7 +300,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const students = rawStudents.filter(item => (item as any).schoolId === activeSchoolId);
   const payments = rawPayments.filter(item => (item as any).schoolId === activeSchoolId);
   const auditLogs = rawAuditLogs.filter(item => (item as any).schoolId === activeSchoolId);
-  const waitlist = rawWaitlist.filter(item => (item as any).schoolId === activeSchoolId);
   const reminders = rawReminders.filter(item => (item as any).schoolId === activeSchoolId);
 
   // Current connected school info
@@ -588,7 +577,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRawStudents([]);
       setRawPayments([]);
       setRawAuditLogs([]);
-      setRawWaitlist([]);
       setSchoolConfig(null);
       setRawReminders([]);
       return;
@@ -644,10 +632,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRawAuditLogs(snapshot.docs.map(d => mapDoc<AuditLog>(d)));
     }, (err) => handleFirestoreError(err, OperationType.GET, "audit_logs"));
 
-    const unsubWaitlist = onSnapshot(collection(db, "waitlist"), (snapshot) => {
-      setRawWaitlist(snapshot.docs.map(d => mapDoc<WaitlistEntry>(d)));
-    }, (err) => handleFirestoreError(err, OperationType.GET, "waitlist"));
-
     const unsubReminders = onSnapshot(collection(db, "reminders"), (snapshot) => {
       setRawReminders(snapshot.docs.map(d => mapDoc<Reminder>(d)));
     }, (err) => handleFirestoreError(err, OperationType.GET, "reminders"));
@@ -688,7 +672,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubStudents();
       unsubPayments();
       unsubAuditLogs();
-      unsubWaitlist();
       unsubReminders();
       unsubSchoolConfig();
     };
@@ -1341,8 +1324,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     studentData: Omit<Student, "id" | "status" | "createdBy" | "createdAt" | "updatedAt" | "paidAmount" | "balance">,
     paymentAmount: number,
     paymentMode: "Espèces" | "Mobile Money" | "Virement" | null,
-    paymentNote?: string,
-    addToWaitlistIfFull: boolean = false
+    paymentNote?: string
   ) => {
     if (!currentUser) return { success: false, message: "Non authentifié" };
     if (currentUser.role === UserRole.SUPERADMIN) {
@@ -1378,54 +1360,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const isClassFull = selectedClass.currentCount >= selectedClass.maxStudents;
 
-    if (isClassFull && !addToWaitlistIfFull) {
+    if (isClassFull) {
       return {
         success: false,
-        message: `La classe est pleine (${selectedClass.currentCount}/${selectedClass.maxStudents}). Voulez-vous mettre cet élève en liste d'attente ?`
+        message: `La classe est complète (${selectedClass.currentCount}/${selectedClass.maxStudents} élèves). Veuillez choisir une autre classe ou augmenter la capacité.`
       };
-    }
-
-    if (isClassFull && addToWaitlistIfFull) {
-      const waitlistId = `wait_${Date.now()}`;
-      const classWaitlist = waitlist.filter(w => w.classId === selectedClass.id);
-      const position = classWaitlist.length + 1;
-
-      const newWaitlistEntry: WaitlistEntry = {
-        id: waitlistId,
-        classId: selectedClass.id,
-        studentId: `stud_wait_${Date.now()}`,
-        studentName: `${studentData.firstName} ${studentData.lastName}`,
-        studentPhone: studentData.phone,
-        addedAt: new Date().toISOString(),
-        position,
-        addedBy: {
-          userId: currentUser.id,
-          userName: currentUser.name
-        },
-        schoolId: activeSchoolId || "school_demo"
-      } as any;
-
-      if (isLocalSession) {
-        // Demo mode: update local state only
-        setRawWaitlist(prev => [...prev, newWaitlistEntry]);
-        return { success: true, waitlistId, message: `L'élève "${newWaitlistEntry.studentName}" a été ajouté en liste d'attente (Mode Démo, Position ${position}).` };
-      }
-
-      try {
-        await setDoc(doc(db, "waitlist", waitlistId), newWaitlistEntry);
-        await handleAudit("ADD_WAITLIST", newWaitlistEntry.studentId, newWaitlistEntry.studentName, {
-          class: `${selectedClass.language} ${selectedClass.level} - ${selectedClass.period}`,
-          position
-        });
-        return {
-          success: true,
-          waitlistId,
-          message: `L'élève "${newWaitlistEntry.studentName}" a été ajouté avec succès en liste d'attente (Position ${position}).`
-        };
-      } catch (err: any) {
-        handleFirestoreError(err, OperationType.WRITE, `waitlist/${waitlistId}`);
-        return { success: false, message: `Erreur lors de l'ajout en liste d'attente : ${err?.message || "Erreur Firestore"}` };
-      }
     }
 
     // Normal registration
@@ -2030,186 +1969,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const promoteFromWaitlist = async (waitlistId: string, paymentAmount: number = 0, mode: "Espèces" | "Mobile Money" | "Virement" = "Espèces", force: boolean = false) => {
-    if (!currentUser) return { success: false, message: "Non authentifié" };
-    
-    const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
-    if (!activePlan.canCreateStudents) {
-      return { success: false, message: "⚠️ Action bloquée : Votre plan d'abonnement actuel ne vous permet pas de créer de nouveaux élèves." };
-    }
-    if (!activePlan.canManageStudents) {
-      return { success: false, message: "⚠️ Action bloquée : Votre plan d'abonnement actuel ne vous permet pas de gérer ou de promouvoir les élèves." };
-    }
-    if (students.length >= activePlan.maxStudents) {
-      return { success: false, message: `⚠️ Limite de capacité atteinte : Votre école utilise le pack ${activePlan.name} qui limite le nombre total d'élèves à ${activePlan.maxStudents}.` };
-    }
-
-    const entry = waitlist.find(w => w.id === waitlistId);
-    if (!entry) return { success: false, message: "Entrée liste d'attente introuvable" };
-
-    const selectedClass = classes.find(c => c.id === entry.classId);
-    if (!selectedClass) return { success: false, message: "Classe introuvable" };
-
-    if (!force && selectedClass.currentCount >= selectedClass.maxStudents) {
-      return { success: false, message: "La classe est toujours pleine." };
-    }
-
-    const nameParts = entry.studentName.split(" ");
-    const firstName = nameParts[0] || "Étudiant";
-    const lastName = nameParts.slice(1).join(" ") || "Inscrit";
-
-    const studentId = `stud_${Date.now()}`;
-    const newStudent: Student = {
-      id: studentId,
-      firstName,
-      lastName,
-      birthDate: "2000-01-01",
-      phone: entry.studentPhone,
-      email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@test.com`,
-      parentName: "À renseigner",
-      parentPhone: entry.studentPhone,
-      campusId: selectedClass.campusId,
-      classId: entry.classId,
-      status: "actif",
-      enrollmentDate: new Date().toISOString().split("T")[0],
-      expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-      totalAmount: 150000,
-      paidAmount: paymentAmount,
-      balance: 150000 - paymentAmount,
-      createdBy: {
-        userId: currentUser.id,
-        userName: currentUser.name
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      schoolId: activeSchoolId || "school_demo"
-    } as any;
-
-    try {
-      // 1. Create student
-      await setDoc(doc(db, "students", studentId), {
-        ...newStudent,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-
-      // 2. Increment class count
-      await updateDoc(doc(db, "classes", selectedClass.id), {
-        currentCount: increment(1)
-      });
-
-      // 3. Save payment if > 0
-      if (paymentAmount > 0) {
-        const payId = `pay_${Date.now()}`;
-        const newPayment: Payment = {
-          id: payId,
-          studentId,
-          amount: paymentAmount,
-          date: new Date().toISOString().split("T")[0],
-          mode,
-          recordedBy: {
-            userId: currentUser.id,
-            userName: currentUser.name
-          },
-          note: `Paiement d'admission depuis liste d'attente`,
-          schoolId: activeSchoolId || "school_demo"
-        } as any;
-        await setDoc(doc(db, "payments", payId), newPayment);
-      }
-
-      // 4. Delete waitlist record
-      await deleteDoc(doc(db, "waitlist", waitlistId));
-
-      // Automatically trigger notification when student is promoted (Validated)
-      const promoRemId = `rem_${Date.now()}`;
-      const paymentLink = `https://pay.linguainscript.com/checkout/${studentId}`;
-      const finalEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@test.com`;
-      const finalBalance = 150000 - paymentAmount;
-
-      await setDoc(doc(db, "reminders", promoRemId), {
-        id: promoRemId,
-        studentId,
-        studentName: entry.studentName,
-        studentEmail: finalEmail,
-        type: "registration_validated",
-        status: "sent",
-        medium: "email",
-        amountDue: finalBalance,
-        dueDate: newStudent.expirationDate,
-        sentAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        notes: `Bonjour,\n\nNous avons le plaisir de vous informer que l'inscription de l'élève ${entry.studentName} suite à sa libération de la liste d'attente est désormais VALIDÉE.\n\nS'il vous reste un montant à régler sur vos droits de scolarité (${finalBalance.toLocaleString()} FCFA), vous pouvez procéder au paiement sécurisé en ligne via notre portail sécurisé :\n👉 ${paymentLink}\n\nMerci de votre confiance.\nLa direction administrative.`,
-        sentBy: {
-          userId: "system",
-          userName: "Service de Notification Automatique"
-        },
-        schoolId: activeSchoolId || "school_demo"
-      });
-
-      // Re-index other waitlist items
-      const remaining = waitlist.filter(w => w.classId === entry.classId && w.id !== waitlistId);
-      for (const item of remaining) {
-        if (item.position > entry.position) {
-          await updateDoc(doc(db, "waitlist", item.id), {
-            position: item.position - 1
-          });
-        }
-      }
-
-      await handleAudit("FROM_WAITLIST", studentId, entry.studentName, {
-        class: `${selectedClass.language} ${selectedClass.level} · ${selectedClass.period}`
-      });
-
-      return { success: true, message: `L'élève ${entry.studentName} a été inscrit avec succès !` };
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `students/${studentId}`);
-      return { success: false, message: "Échec de la promotion" };
-    }
-  };
-
-  const removeFromWaitlist = async (waitlistId: string) => {
-    const entry = waitlist.find(w => w.id === waitlistId);
-    if (!entry) return;
-
-    const activePlan = plansConfig.find(p => p.id === (currentSchool?.subType || "basique")) || defaultPlansConfig[0];
-    if (!activePlan.canManageStudents) {
-      throw new Error(`⚠️ Action bloquée : Votre plan d'abonnement actuel (${activePlan.name}) ne vous permet pas de modifier ou de gérer les inscriptions de la liste d'attente.`);
-    }
-
-    try {
-      await deleteDoc(doc(db, "waitlist", waitlistId));
-
-      // Adjust remaining positions
-      const remaining = waitlist.filter(w => w.classId === entry.classId && w.id !== waitlistId);
-      for (const item of remaining) {
-        if (item.position > entry.position) {
-          await updateDoc(doc(db, "waitlist", item.id), {
-            position: item.position - 1
-          });
-        }
-      }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `waitlist/${waitlistId}`);
-    }
-  };
-
-  const promoteStudentFromWaitlist = async (studentId: string, force?: boolean) => {
-    const student = students.find(s => s.id === studentId);
-    if (!student) return { success: false, message: "Élève introuvable" };
-    const targetClass = classes.find(c => c.id === student.classId);
-    if (!targetClass) return { success: false, message: "Classe introuvable" };
-    if (!force && targetClass.currentCount >= targetClass.maxStudents) {
-      return { success: false, message: "La classe est complète" };
-    }
-    await updateStudent(studentId, { status: "actif" });
-    await updateClass(targetClass.id, { currentCount: targetClass.currentCount + 1 });
-    await handleAudit("PROMOTE_WAITLIST", studentId, `${student.firstName} ${student.lastName}`, {
-      class: `${targetClass.language} ${targetClass.level}`,
-      firstName: student.firstName,
-      lastName: student.lastName
-    });
-    return { success: true, message: "Élève admis avec succès" };
-  };
 
   const updateStudentStatus = async (studentId: string, status: any) => {
     await updateStudent(studentId, { status });
@@ -2570,7 +2329,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         students,
         payments,
         auditLogs,
-        waitlist,
         schools,
         activeSchoolId,
         setActiveSchoolId,
@@ -2603,9 +2361,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateClass,
         deleteClass,
         updateLanguage,
-        promoteFromWaitlist,
-        removeFromWaitlist,
-        promoteStudentFromWaitlist,
         updateStudentStatus,
         resetDatabase,
         schoolConfig,
@@ -2630,7 +2385,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         rawClasses,
         rawPayments,
         rawAuditLogs,
-        rawWaitlist,
         rawReminders
       }}
     >
