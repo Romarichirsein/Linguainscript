@@ -19,11 +19,10 @@ import { Settings } from "./pages/Settings";
 import { SaaSManagement } from "./pages/SaaSManagement";
 import { RefreshCw, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { SplashScreen } from "./components/SplashScreen";
 
 function LoginScreen() {
   const { loginWithGoogle, loginWithPassword } = useData();
-  const [charging, setCharging] = useState(true);
-  const [chargingStep, setChargingStep] = useState(0);
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,37 +31,6 @@ function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [showForgotInfo, setShowForgotInfo] = useState(false);
-
-  // Logo loading animation steps
-  const chargingTexts = [
-    "Recherche de la clé d'enregistrement...",
-    "Vérification des liaisons Firebase...",
-    "Synchro de la base des écoles (Douala & Yaoundé)...",
-    "Prêt pour le chargement sécurisé..."
-  ];
-
-  React.useEffect(() => {
-    // Increment step indicator
-    const interval = setInterval(() => {
-      setChargingStep((prev) => {
-        if (prev >= chargingTexts.length - 1) {
-          clearInterval(interval);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 550);
-
-    // Fade out charging layer after 2.4 seconds
-    const timeout = setTimeout(() => {
-      setCharging(false);
-    }, 2400);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, []);
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,50 +75,13 @@ function LoginScreen() {
       <div className="absolute bottom-[10%] right-[15%] w-96 h-96 rounded-full bg-purple-500/10 blur-2xl pointer-events-none" />
       <div className="absolute top-[60%] left-[80%] w-60 h-60 rounded-full bg-indigo-600/10 blur-2xl pointer-events-none" />
 
-      <AnimatePresence mode="wait">
-        {charging ? (
-          <motion.div
-            key="charging-screen"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-            className="flex flex-col items-center gap-6 max-w-sm px-6 text-center z-10"
-          >
-            {/* Pulsing professional Logo block */}
-            <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-transparent">
-              <img src="/logo.png" alt="Logo" className="h-20 w-20 object-contain" />
-              <div className="absolute -inset-1 rounded-3xl border-2 border-indigo-400/30 animate-ping opacity-60 pointer-events-none" />
-            </div>
-
-            <div className="space-y-2 mt-2">
-              <h1 className="font-sans font-extrabold text-2xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
-                LinguaInscript
-              </h1>
-              <p className="font-mono text-[9px] uppercase tracking-widest text-[#a5b4fc] font-bold">
-                Portail de Scolarité & Facturation
-              </p>
-            </div>
-
-            {/* Animated loading bar */}
-            <div className="w-56 h-1 bg-white/5 rounded-full overflow-hidden mt-3 p-px border border-white/5">
-              <div 
-                className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-500"
-                style={{ width: `${((chargingStep + 1) / chargingTexts.length) * 100}%` }}
-              />
-            </div>
-
-            <p className="font-mono text-[10px] text-slate-400 italic tracking-wider h-4">
-              {chargingTexts[chargingStep]}
-            </p>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="login-form"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full max-w-lg flex flex-col items-center justify-center p-4 z-10"
-          >
+      <motion.div
+        key="login-form"
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-lg flex flex-col items-center justify-center p-4 z-10"
+      >
             {/* Main frosted transparent glass card */}
             <div className="w-full rounded-3xl border border-white/20 bg-slate-950/40 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.6)] p-6 sm:p-9 text-white relative overflow-hidden">
               
@@ -295,8 +226,6 @@ function LoginScreen() {
               © {new Date().getFullYear()} LinguaInscript · Espace de Gestion Sécurisé
             </footer>
           </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -652,9 +581,12 @@ function RootRedirect() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
+        {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
         <DataProvider>
           <BrowserRouter>
             <Routes>

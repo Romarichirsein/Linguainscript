@@ -144,3 +144,17 @@ html.dark .shadow-md {
 html.dark .shadow-xl {
   shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
 }
+
+/* Radar intermediate ring counter-rotation animation */
+@keyframes spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-spin-reverse-slow {
+  animation: spin-reverse 25s linear infinite;
+}
