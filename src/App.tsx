@@ -330,7 +330,7 @@ const hashRouteToTabMap: Record<string, string> = {
 };
 
 function DashboardContainer() {
-  const { firebaseUser, loading, currentUser, isLocalSession, currentPlan, schoolSlug, currentSchool, logout, activeSchoolId, setActiveSchoolId, schools, getSchoolSlug } = useData();
+  const { firebaseUser, loading, currentUser, currentPlan, schoolSlug, currentSchool, logout, activeSchoolId, setActiveSchoolId, schools, getSchoolSlug } = useData();
   const isSchoolBlocked = currentSchool?.status === "blocked";
   const isSchoolExpired = currentSchool && currentSchool.subExpiresAt ? new Date(currentSchool.subExpiresAt) < new Date() : false;
   const location = useLocation();

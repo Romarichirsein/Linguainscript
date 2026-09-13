@@ -1,15 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from "react";
 import { Campus, Teacher, Class, Student, Payment, AuditLog, WaitlistEntry, UserProfile, UserRole, SchoolConfig, Reminder, School, PlanConfig, SystemNotification } from "../types";
-import {
-  mockCampuses,
-  mockTeachers,
-  mockClasses,
-  mockStudents,
-  mockPayments,
-  mockWaitlist,
-  mockAuditLogs,
-  mockUsers
-} from "../db/mockData";
 import { db, auth } from "../lib/firebase";
 import { handleFirestoreError, OperationType } from "../lib/firebaseErrors";
 import {
@@ -255,10 +245,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
   const [loading, setLoading] = useState(true);
+  const [isLocalSession, setIsLocalSession] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("lingua_isLocalSession");
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
 
-  // isLocalSession is kept as a constant false — demo mode is disabled
-  const isLocalSession = false;
-  const setIsLocalSession = (val: boolean) => {}; // Dummy function to prevent errors
+  useEffect(() => {
+    try {
+      localStorage.setItem("lingua_isLocalSession", JSON.stringify(isLocalSession));
+    } catch (e) {
+      console.warn("localStorage sync failed:", e);
+    }
+  }, [isLocalSession]);
 
   useEffect(() => {
     try {
@@ -1217,23 +1219,54 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Switch virtual user profile in DB (mock simulation for presentation)
   const switchUser = async (userId: string) => {
-    if (!firebaseUser) return;
-    const targetMock = mockUsers.find(u => u.id === userId);
-    if (!targetMock) return;
-
-    const userProfileRef = doc(db, "users", firebaseUser.uid);
+    // Attempt to fetch the user profile from Firestore (with a timeout to avoid hanging)
+    const userRef = doc(db, "users", userId);
+    const docTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Firestore operation timeout")), 15000));
     try {
-      const updatedProfile: UserProfile = {
-        id: firebaseUser.uid,
-        name: targetMock.name,
-        email: firebaseUser.email || targetMock.email,
-        role: targetMock.role,
-        campusId: targetMock.campusId
-      };
-      await setDoc(userProfileRef, updatedProfile);
-      setCurrentUser(updatedProfile);
+      const snapshot = await Promise.race([getDoc(userRef), docTimeout]);
+      if (snapshot && snapshot.exists()) {
+        const data = snapshot.data() as UserProfile;
+        // Update context state and persist to localStorage
+        setCurrentUser(data);
+        setFirebaseUser(null); // No Firebase auth for a switched virtual user
+        setActiveSchoolId(data.schoolId || null);
+        setIsLocalSession(false);
+        localStorage.setItem("lingua_currentUser", JSON.stringify(data));
+        localStorage.removeItem("lingua_firebaseUser");
+      } else {
+        // If the document does not exist, fall back to a minimal local profile
+        const fallback: UserProfile = {
+          id: userId,
+          name: "Utilisateur Local",
+          email: "",
+          role: UserRole.SECRETAIRE,
+          campusId: null,
+          schoolId: null,
+        };
+        setCurrentUser(fallback);
+        setFirebaseUser(null);
+        setActiveSchoolId(null);
+        setIsLocalSession(true);
+        localStorage.setItem("lingua_currentUser", JSON.stringify(fallback));
+        localStorage.removeItem("lingua_firebaseUser");
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `users/${firebaseUser.uid}`);
+      // Network error, timeout, or any other issue – treat as a local session
+      console.warn("Switch user fallback (offline/local):", err);
+      const fallback: UserProfile = {
+        id: userId,
+        name: "Utilisateur Local",
+        email: "",
+        role: UserRole.SECRETAIRE,
+        campusId: null,
+        schoolId: null,
+      };
+      setCurrentUser(fallback);
+      setFirebaseUser(null);
+      setActiveSchoolId(null);
+      setIsLocalSession(true);
+      localStorage.setItem("lingua_currentUser", JSON.stringify(fallback));
+      localStorage.removeItem("lingua_firebaseUser");
     }
   };
 
